@@ -1,0 +1,35 @@
+plugins {
+    id 'com.android.application'
+}
+
+android {
+    namespace 'de.wetterwerk.app'
+    compileSdk 34
+
+    defaultConfig {
+        applicationId "de.wetterwerk.app"
+        minSdk 24
+        targetSdk 34
+        versionCode 1
+        versionName "1.0"
+    }
+
+    // Feste Unterschrift, damit sich Updates über die alte Version installieren lassen
+    signingConfigs {
+        debug {
+            storeFile file('wetterwerk.keystore')
+            storePassword 'wetterwerk7'
+            keyAlias 'wetterwerk'
+            keyPassword 'wetterwerk7'
+        }
+    }
+
+    buildTypes {
+        release { minifyEnabled false }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+}

@@ -1,0 +1,16 @@
+WETTERWERK – Android-App
+========================
+
+Die App wird bei jeder Änderung automatisch von GitHub gebaut.
+
+Herunterladen aufs Handy:
+  github.com/schnitzeljagd16-cmyk/Wetterwerk/releases/latest
+  → "Wetterwerk.apk" antippen → installieren
+  (beim ersten Mal "Unbekannte Apps installieren" für den Browser erlauben)
+
+Updates: Die App hat eine feste Unterschrift (app/wetterwerk.keystore).
+Neue Versionen lassen sich einfach über die alte installieren.
+Den Schlüssel bitte nicht löschen – sonst klappen Updates nicht mehr.
+
+Wetterdaten: Open-Meteo (CC BY 4.0), kombiniert aus DWD ICON, ECMWF,
+Météo-France, UK Met Office und NOAA GFS.
