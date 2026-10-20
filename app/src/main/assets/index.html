@@ -137,6 +137,35 @@ button:focus-visible,input:focus-visible{outline:2px solid #fff;outline-offset:2
 .tog::after{content:"";position:absolute;top:3px;left:3px;width:22px;height:22px;border-radius:50%;background:#fff;transition:transform .2s}
 .tog[aria-checked="true"]{background:#5cc08a}
 .tog[aria-checked="true"]::after{transform:translateX(20px)}
+/* Wetterfrosch */
+.frogcard{display:grid;grid-template-columns:118px 1fr;gap:4px 10px;align-items:center;padding:12px 14px 12px 6px}
+.frogcard svg{width:112px;height:auto;display:block;overflow:visible;cursor:pointer}
+.bubble{position:relative;background:#fff;color:#18304d;border-radius:18px;padding:12px 14px;font:500 15px/1.4 var(--f-body);box-shadow:0 6px 18px rgba(0,20,50,.18)}
+.bubble::before{content:"";position:absolute;left:-8px;top:50%;margin-top:-8px;border:8px solid transparent;border-left:0;border-right-color:#fff}
+.bubble small{display:block;margin-top:6px;color:#5d7088;font-size:11.5px;font-weight:400}
+.frog-bob{animation:bob 2.6s ease-in-out infinite}
+@keyframes bob{50%{transform:translateY(-2.5px)}}
+.frog-eyes{transform-box:fill-box;transform-origin:center;animation:blink 5s infinite}
+@keyframes blink{0%,46%,50%,100%{transform:scaleY(1)}48%{transform:scaleY(.1)}}
+.frog-jump{animation:jump .6s cubic-bezier(.3,.7,.4,1)}
+@keyframes jump{30%{transform:translateY(-22px) rotate(-6deg)}60%{transform:translateY(0) rotate(4deg)}80%{transform:translateY(-4px)}}
+.frog-shake{animation:shake .5s ease-in-out infinite}
+@keyframes shake{25%{transform:translateX(-1.2px)}75%{transform:translateX(1.2px)}}
+.zzz{animation:zzz 3s ease-in-out infinite;transform-box:fill-box}
+@keyframes zzz{0%{opacity:0;transform:translate(0,4px)}40%{opacity:1}100%{opacity:0;transform:translate(6px,-10px)}}
+
+/* 5 Tage morgens/mittags/abends */
+.five{display:flex;flex-direction:column}
+.fday{padding:10px 0;border-top:1px solid var(--glass-line);display:flex;flex-direction:column;gap:6px}
+.fday:first-child{border-top:0;padding-top:0}
+.fday .dn{font-weight:600;font-size:14px}
+.fday .dn small{font-weight:400;color:var(--ink-faint);margin-left:6px}
+.slots{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.slot{background:rgba(255,255,255,.08);border-radius:14px;padding:8px 6px;display:flex;flex-direction:column;align-items:center;gap:2px}
+.slot.past{opacity:.38}
+.slot .sl{font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-faint);font-weight:600}
+.slot .st{font:600 18px/1.1 var(--f-display)}
+.slot .sr{font-size:11px;color:var(--rain);min-height:15px}
 .error{display:flex;flex-direction:column;gap:12px;align-items:flex-start}
 .skel{height:14px;border-radius:7px;background:rgba(255,255,255,.18);animation:pulse 1.4s ease-in-out infinite}
 @keyframes pulse{50%{opacity:.45}}
@@ -516,6 +545,9 @@ function render(f, now, alerts=[]){
   // Amtliche Warnungen (DWD)
   html += warnings(alerts);
 
+  // Wetterfrosch
+  html += frogCard(f, cur, today, temp, alerts, nowISO);
+
   // Regen 3 Stunden
   if (now && now.minutely_15 && now.minutely_15.precipitation){
     const mt = now.minutely_15.time, mp = now.minutely_15.precipitation.map(v=>v||0);
@@ -532,6 +564,9 @@ function render(f, now, alerts=[]){
 
   // Stunden mit Temperaturkurve
   html += `<section class="card fadein"><div class="head"><h2>${clock()} Nächste 24 Stunden</h2></div><div class="hscroll">${hourly(next24)}</div></section>`;
+
+  // 5 Tage morgens / mittags / abends
+  html += fiveDays(f, nowISO);
 
   // 10 Tage
   const gMin = Math.min(...f.days.map(d=>d.min)), gMax = Math.max(...f.days.map(d=>d.max)), span = Math.max(1,gMax-gMin);
@@ -580,6 +615,7 @@ function render(f, now, alerts=[]){
 
   $("#app").innerHTML = html;
   bindNotify();
+  bindFrog();
   countUp($("#heroTemp"), Math.round(temp));
 }
 function countUp(el, target){
@@ -587,6 +623,129 @@ function countUp(el, target){
   const startV = target - 6, t0 = performance.now();
   const step = t => { const k = Math.min(1,(t-t0)/600), e = 1-Math.pow(1-k,3); el.innerHTML = Math.round(startV+(target-startV)*e) + "<sup>°</sup>"; if (k<1) requestAnimationFrame(step); };
   requestAnimationFrame(step);
+}
+
+/* ================= Wetterfrosch ================= */
+const HEIGHT = {"clear-day":1,"clear-night":1,"partly-day":.8,"partly-night":.8,"cloudy":.55,"overcast":.42,"fog":.36,"shower-day":.3,"shower-night":.3,"rain":.18,"heavy":.06,"snow":.22,"thunder":0};
+const pick = a => a[Math.floor(Math.random()*a.length)];
+let frogCtx = null;
+function frogLines(c){
+  const {kind, temp, max, min, gust, night, warn, tmrw} = c;
+  if (warn) return [`Achtung, der DWD warnt: ${warn}. Ich bleib heute vorsichtshalber ganz unten.`, `${warn}! Ich hab mein Glas schon festgeschraubt. Pass gut auf dich auf.`];
+  if (night) return [`Psst, ich schlafe schon. Morgen gibt's ${tmrw}.`, `Gute Nacht! Morgen ${tmrw}. Ich träume derweil von fetten Fliegen.`, `Schon dunkel. Ich zähle Schäfchenwolken … morgen ${tmrw}.`];
+  const L = {
+    clear:[`Sonnenbrille auf, Leiter hoch! Bis zu ${max}° heute, ich sonne mich ganz oben.`, `So schönes Wetter, ich überlege, mein Glas zu kündigen.`, `Kein Wölkchen in Sicht. Und falls doch, war's nicht meine Schuld.`],
+    partly:[`Ein paar Wolken, viel Sonne. Ich bleib im oberen Drittel, sicher ist sicher.`, `Heiter bis wolkig. Mehr verrate ich nur gegen eine Fliege.`, `Mal Sonne, mal Wolke, wie meine Laune vor dem Frühstück.`],
+    cloud:[`Grau in grau. Ich halte mich in der Mitte und warte ab.`, `Wolken wie Watte. Regen? Die Modelle sagen eher nein.`, `Kein Sonnenbad heute. Ich lese lieber den Wetterbericht. Meinen eigenen.`],
+    fog:[`Nebel! Ich sehe meine eigene Leiter nicht mehr.`, `So neblig, dass sich sogar die Fliegen verirren. Fahr vorsichtig!`],
+    shower:[`Schauerwetter! Schirm einpacken, auch wenn's zwischendurch sonnig ist.`, `Mal nass, mal trocken. Ich bleib flexibel, du am besten auch.`],
+    rain:[`Schirm auf! Für mich ist das Wellness, für dich eher nicht.`, `Es regnet. Ich bleib unten am Wasser, mein Lieblingsplatz.`, `Regenjacke statt Sonnenbrille. Glaub mir, ich bin Experte für nass.`],
+    heavy:[`Das schüttet wie aus Eimern! Selbst mir ist das zu viel Wasser.`, `Heute lieber drinnen bleiben. Ich hab mein Glas schon abgedichtet.`],
+    thunder:[`Gewitter! Ich hab mich ganz unten versteckt. Mach du das auch.`, `Es donnert! Ich bin nicht ängstlich, nur … sehr vorsichtig.`],
+    snow:[`Schnee! Mütze auf, Schal um, und dann bitte heißen Tee.`, `Es schneit! Für einen Frosch eine echte Herausforderung.`]
+  };
+  const key = /clear/.test(kind)?"clear":/partly/.test(kind)?"partly":/shower/.test(kind)?"shower":(kind==="cloudy"||kind==="overcast")?"cloud":kind;
+  let lines = (L[key]||L.cloud).slice();
+  if (min<=3 && key!=="snow") lines = lines.map(l => l + ` Und zieh dich warm an, heute früh nur ${min}°.`);
+  if (gust>=50) lines.push(`Halt deine Mütze fest! Böen bis ${gust} km/h, ich klammere mich an meine Sprosse.`);
+  if (temp>=27) lines.push(`${temp}°! Ich hätte gern einen Eiswürfel in mein Glas.`);
+  return lines;
+}
+function frogSVG(c){
+  const lvl = c.night ? .55 : Math.max(0, Math.min(1, (HEIGHT[c.kind] ?? .5) - (c.temp<4 ? .08 : 0)));
+  const rungs = [178,164,150,136,122,108,94];
+  const ri = Math.round(lvl*6), y = rungs[ri];
+  const rain = /rain|heavy|shower/.test(c.kind) && !c.night, sun = /clear|partly/.test(c.kind) && !c.night && c.temp>=14;
+  const cold = c.temp<6 || c.kind==="snow", scared = c.kind==="thunder" || !!c.warn, sleep = c.night;
+  const G="#5cc062", D="#3e9e4a", B="#c8eeb0";
+  let body = "";
+  // Beine und Körper
+  body += `<ellipse cx="-19" cy="-6" rx="11" ry="6" fill="${D}"/><ellipse cx="19" cy="-6" rx="11" ry="6" fill="${D}"/>`;
+  body += `<ellipse cx="0" cy="-21" rx="22" ry="19" fill="${G}"/><ellipse cx="0" cy="-16" rx="14" ry="11" fill="${B}"/>`;
+  body += `<ellipse cx="-13" cy="-3" rx="6" ry="4" fill="${D}"/><ellipse cx="13" cy="-3" rx="6" ry="4" fill="${D}"/>`;
+  if (cold) body += `<path d="M-19,-30 Q0,-24 19,-30 L19,-24 Q0,-18 -19,-24 Z" fill="#e4574b"/><path d="M8,-26 l4,16 l7,-1 l-4,-15z" fill="#e4574b"/><path d="M-12,-27 v5 M-4,-25 v5 M4,-25 v5 M12,-27 v5" stroke="#ffd166" stroke-width="2"/>`;
+  // Mütze hinter den Augen
+  if (cold && !sleep) body += `<path d="M-23,-46 Q-23,-74 0,-74 Q23,-74 23,-46 Z" fill="#e4574b"/><rect x="-24" y="-50" width="48" height="7" rx="3" fill="#f5f0e6"/><circle cx="0" cy="-77" r="5.5" fill="#f5f0e6"/>`;
+  if (sleep) body += `<path d="M-22,-48 Q-18,-76 6,-72 Q22,-70 34,-58 Q30,-52 22,-50 Z" fill="#6f8fd8"/><circle cx="35" cy="-56" r="5" fill="#f5f0e6"/>`;
+  // Kopf
+  body += `<ellipse cx="0" cy="-40" rx="24" ry="16" fill="${G}"/>`;
+  body += `<circle cx="-13" cy="-52" r="9.5" fill="${G}"/><circle cx="13" cy="-52" r="9.5" fill="${G}"/>`;
+  if (sleep){
+    body += `<path d="M-18,-52 q5,4 10,0 M8,-52 q5,4 10,0" stroke="#1f3a24" stroke-width="2" fill="none" stroke-linecap="round"/>`;
+  } else {
+    const pr = scared ? 2 : 3.4, px = scared ? 0 : 1;
+    body += `<g class="frog-eyes"><circle cx="-13" cy="-52" r="${scared?7.5:6.5}" fill="#fff"/><circle cx="13" cy="-52" r="${scared?7.5:6.5}" fill="#fff"/>
+      <circle cx="${-13+px}" cy="-51.5" r="${pr}" fill="#18271a"/><circle cx="${13+px}" cy="-51.5" r="${pr}" fill="#18271a"/>
+      <circle cx="${-12+px}" cy="-53" r="1.1" fill="#fff"/><circle cx="${14+px}" cy="-53" r="1.1" fill="#fff"/></g>`;
+  }
+  if (sun) body += `<g><rect x="-23" y="-57" width="18" height="11" rx="5" fill="#16202c"/><rect x="5" y="-57" width="18" height="11" rx="5" fill="#16202c"/><path d="M-5,-53 h10" stroke="#16202c" stroke-width="2.5"/><path d="M-19,-55 l5,0" stroke="#fff" stroke-opacity=".5" stroke-width="1.5"/></g>`;
+  body += `<circle cx="-17" cy="-37" r="3.6" fill="#ff9aa2" opacity=".75"/><circle cx="17" cy="-37" r="3.6" fill="#ff9aa2" opacity=".75"/>`;
+  body += scared ? `<ellipse cx="0" cy="-34" rx="3.5" ry="4" fill="#1f5a2a"/>` : sleep ? `<path d="M-5,-35 q5,3 10,0" stroke="#1f5a2a" stroke-width="2" fill="none" stroke-linecap="round"/>` : `<path d="M-10,-37 Q0,-28 10,-37" stroke="#1f5a2a" stroke-width="2.2" fill="none" stroke-linecap="round"/>`;
+  // Schirm
+  if (rain) body += `<path d="M20,-12 L27,-70" stroke="#5b4636" stroke-width="2.4" stroke-linecap="round"/><path d="M20,-12 q-1,6 -6,5" stroke="#5b4636" stroke-width="2.4" fill="none" stroke-linecap="round"/>
+    <path d="M-3,-68 Q27,-102 57,-68 Q50,-74 42,-68 Q35,-74 27,-68 Q19,-74 12,-68 Q4,-74 -3,-68 Z" fill="#ff6b6b"/><path d="M27,-68 Q27,-90 27,-86" stroke="#d94848" stroke-width="1"/><circle cx="27" cy="-86" r="2" fill="#5b4636"/>`;
+  if (sleep) body += `<text class="zzz" x="26" y="-66" font-size="13" font-weight="700" fill="#fff" font-family="Bricolage Grotesque,sans-serif">Z</text><text class="zzz" x="34" y="-78" font-size="10" font-weight="700" fill="#fff" style="animation-delay:1.2s" font-family="Bricolage Grotesque,sans-serif">z</text>`;
+
+  let ladder = `<g stroke="#d9b382" stroke-width="4" stroke-linecap="round"><line x1="48" y1="80" x2="48" y2="192"/><line x1="82" y1="80" x2="82" y2="192"/>${rungs.map(r=>`<line x1="48" y1="${r}" x2="82" y2="${r}" stroke-width="3"/>`).join("")}</g>`;
+  return `<svg viewBox="0 0 130 206" role="img" aria-label="Wetterfrosch auf Sprosse ${ri+1} von 7" id="frogSvg">
+    <rect x="10" y="22" width="110" height="178" rx="24" fill="rgba(255,255,255,.12)" stroke="rgba(255,255,255,.6)" stroke-width="2.5"/>
+    <path d="M12,176 Q40,170 65,176 T118,176 L118,186 Q118,198 104,198 L26,198 Q12,198 12,186 Z" fill="#8fd0ff" opacity=".35"/>
+    <rect x="20" y="10" width="90" height="16" rx="6" fill="#c9965a"/><rect x="20" y="20" width="90" height="4" fill="#a8783f"/>
+    <path d="M22,40 q0,60 0,130" stroke="#fff" stroke-opacity=".25" stroke-width="5" stroke-linecap="round" fill="none"/>
+    ${ladder}
+    <g transform="translate(65,${y}) scale(.82)"><g id="frogBody" class="${scared?"frog-shake":"frog-bob"}">${body}</g></g>
+  </svg>`;
+}
+function frogCard(f, cur, today, temp, alerts, nowISO){
+  const top = (alerts||[]).slice().sort((a,b)=>(SEV[b.severity]||0)-(SEV[a.severity]||0))[0];
+  const warn = top && (SEV[top.severity]||0)>=2 ? (top.event_de ? top.event_de.charAt(0)+top.event_de.slice(1).toLowerCase() : "Unwetter") : null;
+  const tm = f.days[f.days.indexOf(today)+1];
+  const tmrw = tm ? `${LABEL[tm.kind].toLowerCase()} bei ${r0(tm.max)}°` : "neues Wetter";
+  const gust = r0(Math.max(...f.hours.slice(f.hours.indexOf(cur), f.hours.indexOf(cur)+12).map(x=>x.gust)));
+  frogCtx = {kind:cur.kind, temp:r0(temp), max:r0(today.max), min:r0(today.min), gust, night:!cur.isDay, warn, tmrw};
+  frogCtx.lines = frogLines(frogCtx); frogCtx.last = -1;
+  return `<section class="card frogcard fadein">${frogSVG(frogCtx)}<div class="bubble" id="frogSay">${nextLine()}<small>Tipp auf mich!</small></div></section>`;
+}
+function nextLine(){
+  const L = frogCtx.lines; let i = Math.floor(Math.random()*L.length);
+  if (L.length>1 && i===frogCtx.last) i = (i+1)%L.length;
+  frogCtx.last = i; return L[i];
+}
+function bindFrog(){
+  const svg = $("#frogSvg"); if (!svg) return;
+  svg.onclick = () => {
+    const b = $("#frogBody"), cls = b.getAttribute("class");
+    b.setAttribute("class","frog-jump");
+    setTimeout(()=>b.setAttribute("class",cls), 650);
+    $("#frogSay").innerHTML = nextLine() + `<small>Tipp auf mich!</small>`;
+  };
+}
+
+/* ================= 5 Tage: morgens, mittags, abends ================= */
+const SLOTS = [["Morgens",6,10],["Mittags",11,15],["Abends",17,21]];
+function slotKind(hs){
+  const rp = Math.max(...hs.map(x=>x.rainProb)), pr = hs.reduce((a,x)=>a+x.precip,0), t = hs.reduce((a,x)=>a+x.temp,0)/hs.length;
+  const mid = hs[Math.floor(hs.length/2)], n = mid.isDay ? "day" : "night";
+  if (Math.max(...hs.map(x=>x.thunderShare))>=0.4 && rp>=40) return "thunder";
+  if (rp>=55 && pr>=0.5) return t<=0.5 ? "snow" : pr>=6 ? "heavy" : "rain";
+  if (rp>=30) return t<=0.5 ? "snow" : "shower-"+n;
+  if (hs.filter(x=>x.kind==="fog").length >= hs.length/2) return "fog";
+  const cl = hs.reduce((a,x)=>a+x.cloud,0)/hs.length;
+  return cl<20 ? "clear-"+n : cl<55 ? "partly-"+n : cl<85 ? "cloudy" : "overcast";
+}
+function fiveDays(f, nowISO){
+  const rows = f.days.slice(0,5).map((d,i) => {
+    const cells = SLOTS.map(([name,a,b]) => {
+      const hs = d.hours.filter(x=>{ const h=+x.time.slice(11,13); return h>=a && h<=b; });
+      if (!hs.length) return `<div class="slot past"><span class="sl">${name}</span></div>`;
+      const past = hs[hs.length-1].time < nowISO.slice(0,13)+":00";
+      const t = hs.reduce((s,x)=>s+x.temp,0)/hs.length, rp = Math.max(...hs.map(x=>x.rainProb));
+      return `<div class="slot${past?" past":""}"><span class="sl">${name}</span>${icon(slotKind(hs),36)}<span class="st num">${deg(t)}</span><span class="sr num">${rp>=20?rp+" % Regen":""}</span></div>`;
+    }).join("");
+    const dn = i===0 ? "Heute" : i===1 ? "Morgen" : WDL[(new Date(d.date+"T12:00:00Z").getUTCDay()+6)%7];
+    return `<div class="fday"><div class="dn">${dn}<small class="num">${d.date.slice(8,10)}.${d.date.slice(5,7)}.</small></div><div class="slots">${cells}</div></div>`;
+  }).join("");
+  return `<section class="card fadein"><div class="head"><h2>${sv('<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2"/>')} 5 Tage im Tagesverlauf</h2></div><div class="five">${rows}</div></section>`;
 }
 
 /* ================= Unwetterwarnungen ================= */
