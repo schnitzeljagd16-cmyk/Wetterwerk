@@ -121,6 +121,22 @@ button:focus-visible,input:focus-visible{outline:2px solid #fff;outline-offset:2
 .btn.primary{background:#fff;color:#14304f}
 .hint{font-size:13px;color:var(--ink-soft);padding:4px}
 
+.warn{border-radius:20px;padding:14px 16px;display:flex;flex-direction:column;gap:6px;border:1px solid rgba(255,255,255,.25);backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px)}
+.warn.s1{background:rgba(214,170,30,.42)} .warn.s2{background:rgba(226,120,30,.5)} .warn.s3{background:rgba(205,45,45,.55)} .warn.s4{background:rgba(140,40,150,.6)}
+.warn .wh{display:flex;align-items:center;gap:10px;font:600 16px/1.25 var(--f-display)}
+.warn .wt{font-size:13px;color:var(--ink-soft)}
+.warn details{font-size:13.5px;line-height:1.45}
+.warn summary{cursor:pointer;color:var(--ink-soft);font-size:13px;list-style:none}
+.warn summary::-webkit-details-marker{display:none}
+.warn details p{margin:8px 0 0}
+.switch{display:flex;align-items:center;gap:12px;padding:10px 0;border-top:1px solid var(--glass-line)}
+.switch:first-of-type{border-top:0}
+.switch .t{flex:1;min-width:0}
+.switch small{display:block;color:var(--ink-faint);font-size:12.5px}
+.tog{position:relative;width:48px;height:28px;border-radius:14px;background:rgba(255,255,255,.2);flex:none;transition:background .2s}
+.tog::after{content:"";position:absolute;top:3px;left:3px;width:22px;height:22px;border-radius:50%;background:#fff;transition:transform .2s}
+.tog[aria-checked="true"]{background:#5cc08a}
+.tog[aria-checked="true"]::after{transform:translateX(20px)}
 .error{display:flex;flex-direction:column;gap:12px;align-items:flex-start}
 .skel{height:14px;border-radius:7px;background:rgba(255,255,255,.18);animation:pulse 1.4s ease-in-out infinite}
 @keyframes pulse{50%{opacity:.45}}
@@ -329,7 +345,7 @@ function icon(kind, size=32){
   const rays = [0,45,90,135,180,225,270,315].map(a=>{const r=a*Math.PI/180;return `<line x1="${(16+10*Math.cos(r)).toFixed(1)}" y1="${(16+10*Math.sin(r)).toFixed(1)}" x2="${(16+13.2*Math.cos(r)).toFixed(1)}" y2="${(16+13.2*Math.sin(r)).toFixed(1)}" stroke="#ffc94a" stroke-width="2.2" stroke-linecap="round"/>`}).join("");
   const sun = `${rays}<circle cx="16" cy="16" r="7.2" fill="url(#${id}s)"/>`;
   const moon = `<path d="M19.5 5.5a10.5 10.5 0 1 0 7.8 16.2A8.4 8.4 0 0 1 19.5 5.5z" fill="url(#${id}m)"/>`;
-  const small = (x,s) => `<g transform="translate(${-5+x},-6) scale(${s})">`;
+  const small = (x,s) => `<g transform="translate(${-1+x*.5},-0.5) scale(.7)">`;
   const cloud = (dark=false, y=0) => `<path transform="translate(0,${y})" d="M9.2 27h15.3a6.2 6.2 0 0 0 .7-12.4A8.3 8.3 0 0 0 9.4 16.3 5.4 5.4 0 0 0 9.2 27z" fill="url(#${id}${dark?"d":"c"})"/>`;
   const drops = n => Array.from({length:n},(_,i)=>`<path d="M${11.5+i*5} 28.2c-.9 1.6-1.4 2.5-1.4 3.2a1.4 1.4 0 0 0 2.8 0c0-.7-.5-1.6-1.4-3.2z" fill="#8fd0ff"/>`).join("");
   const flakes = `<g fill="#fff"><circle cx="11" cy="30" r="1.6"/><circle cx="16.5" cy="31.5" r="1.6"/><circle cx="22" cy="30" r="1.6"/></g>`;
@@ -357,12 +373,14 @@ async function load(){
   $("#placeName").textContent = loc.name;
   const base = `https://api.open-meteo.com/v1/forecast?latitude=${loc.lat}&longitude=${loc.lon}&timezone=auto`;
   try {
-    const [multi, now] = await Promise.all([
+    const [multi, alerts, now] = await Promise.all([
       getJSON(`${base}&hourly=${HOURLY.join(",")}&daily=sunrise,sunset,uv_index_max&models=${MODELS.map(m=>m.id).join(",")}&forecast_days=10`),
+      getJSON(`https://api.brightsky.dev/alerts?lat=${loc.lat}&lon=${loc.lon}`).catch(()=>null),
       getJSON(`${base}&current=temperature_2m,apparent_temperature,is_day,relative_humidity_2m,wind_speed_10m,wind_gusts_10m,wind_direction_10m,precipitation,pressure_msl,dew_point_2m&minutely_15=precipitation&forecast_minutely_15=12`).catch(()=>null)
     ]);
     lastForecast = build(multi);
-    render(lastForecast, now);
+    render(lastForecast, now, alerts && alerts.alerts || []);
+    if (NATIVE && window.AndroidNet.setLocation) try{ window.AndroidNet.setLocation(loc.name, loc.lat, loc.lon); }catch(e){}
     store("ww-last", {loc, t:Date.now()});
     $("#updated").textContent = "Aktualisiert um " + new Date().toLocaleTimeString("de-DE",{hour:"2-digit",minute:"2-digit"}) + " Uhr";
   } catch(e){
@@ -465,7 +483,7 @@ function tempColor(t){
 function uvInfo(u){ if (u==null) return ["–",""]; return u<3?["gering","Kein Schutz nötig"]:u<6?["mäßig","Sonnenschutz ab mittags"]:u<8?["hoch","Sonnencreme und Schatten"]:u<11?["sehr hoch","Mittagssonne meiden"]:["extrem","Draußen möglichst meiden"]; }
 
 /* ================= Anzeige ================= */
-function render(f, now){
+function render(f, now, alerts=[]){
   const nowISO = localNowISO(f.offset), hourISO = nowISO.slice(0,13)+":00";
   let start = f.hours.findIndex(x=>x.time>=hourISO); if (start<0) start = 0;
   const cur = f.hours[start], today = f.days.find(d=>d.date===cur.date) || f.days[0];
@@ -494,6 +512,9 @@ function render(f, now){
       <span class="pill">${f.models.length} Wettermodelle</span>
     </div>
   </section>`;
+
+  // Amtliche Warnungen (DWD)
+  html += warnings(alerts);
 
   // Regen 3 Stunden
   if (now && now.minutely_15 && now.minutely_15.precipitation){
@@ -555,7 +576,10 @@ function render(f, now){
     <div class="tile"><span class="label">Gefühlt</span><div class="val num">${deg(feels)}</div><p>${feels<temp-2?"Wind lässt es kälter wirken":feels>temp+2?"Feuchte Luft wirkt wärmer":"Fühlt sich an wie gemessen"}</p></div>
   </div>`;
 
+  if (NATIVE && window.AndroidNet.setNotify) html += notifyCard();
+
   $("#app").innerHTML = html;
+  bindNotify();
   countUp($("#heroTemp"), Math.round(temp));
 }
 function countUp(el, target){
@@ -564,6 +588,59 @@ function countUp(el, target){
   const step = t => { const k = Math.min(1,(t-t0)/600), e = 1-Math.pow(1-k,3); el.innerHTML = Math.round(startV+(target-startV)*e) + "<sup>°</sup>"; if (k<1) requestAnimationFrame(step); };
   requestAnimationFrame(step);
 }
+
+/* ================= Unwetterwarnungen ================= */
+const SEV = {minor:1, moderate:2, severe:3, extreme:4};
+const SEVNAME = {1:"Wetterwarnung", 2:"Markante Warnung", 3:"Unwetterwarnung", 4:"Extremes Unwetter"};
+function fmtWhen(iso){
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (isNaN(d)) return "";
+  const today = new Date(), tom = new Date(Date.now()+864e5);
+  const day = d.toDateString()===today.toDateString() ? "heute" : d.toDateString()===tom.toDateString() ? "morgen" : WDL[(d.getDay()+6)%7];
+  return `${day} ${d.toLocaleTimeString("de-DE",{hour:"2-digit",minute:"2-digit"})} Uhr`;
+}
+const esc = t => String(t||"").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+function warnings(list){
+  if (!list || !list.length) return "";
+  const sorted = list.slice().sort((a,b)=>(SEV[b.severity]||0)-(SEV[a.severity]||0));
+  return sorted.map(a => {
+    const lv = SEV[a.severity]||1;
+    const tri = `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round" aria-hidden="true"><path d="M12 3 2 20h20z"/><path d="M12 10v4M12 17v.5" stroke-linecap="round"/></svg>`;
+    return `<section class="warn s${lv} fadein" role="alert">
+      <div class="wh">${tri}<span>${esc(a.headline_de || a.event_de || "Wetterwarnung")}</span></div>
+      <div class="wt">${SEVNAME[lv]} des DWD${a.onset?` · ${fmtWhen(a.onset)}`:""}${a.expires?` bis ${fmtWhen(a.expires)}`:""}</div>
+      ${a.description_de ? `<details><summary>Details anzeigen</summary><p>${esc(a.description_de)}</p>${a.instruction_de?`<p><b>Was tun:</b> ${esc(a.instruction_de)}</p>`:""}</details>` : ""}
+    </section>`;
+  }).join("");
+}
+
+/* ================= Benachrichtigungen (nur in der App) ================= */
+function notifyState(){ try { return JSON.parse(window.AndroidNet.getNotify()); } catch(e){ return {rain:true, warn:true}; } }
+function notifyCard(){
+  const s = notifyState();
+  let perm = true; try { perm = window.AndroidNet.hasNotifyPermission(); } catch(e){}
+  const row = (key, title, sub) => `<div class="switch"><div class="t"><b>${title}</b><small>${sub}</small></div><button class="tog" role="switch" data-key="${key}" aria-checked="${!!s[key]}" aria-label="${title}"></button></div>`;
+  return `<section class="card fadein"><div class="head"><h2>${sv('<path d="M6 16V11a6 6 0 0 1 12 0v5l2 2H4z"/><path d="M10 21h4"/>')} Benachrichtigungen</h2></div>
+    <div>
+      ${row("rain","Regen-Alarm","Meldet sich, kurz bevor es bei dir zu regnen beginnt")}
+      ${row("warn","Unwetterwarnungen","Amtliche Warnungen vom Deutschen Wetterdienst")}
+      ${row("warnMinor","Auch leichte Warnungen","z. B. Frost, Nebel oder Windböen")}
+    </div>
+    ${perm ? "" : `<p class="note" style="color:var(--mid)">Benachrichtigungen sind für Wetterwerk noch nicht erlaubt. Tippe auf einen Schalter, dann fragt das Handy nach.</p>`}
+    <button class="btn" id="testNotify" type="button" style="align-self:flex-start">Test-Benachrichtigung senden</button>
+    <p class="note">Gilt für den angezeigten Ort. Das Handy prüft etwa alle 15 Minuten.</p>
+  </section>`;
+}
+function bindNotify(){
+  document.querySelectorAll(".tog").forEach(b => b.onclick = () => {
+    const s = notifyState(); s[b.dataset.key] = b.getAttribute("aria-checked") !== "true";
+    b.setAttribute("aria-checked", s[b.dataset.key]);
+    try { window.AndroidNet.setNotify(JSON.stringify(s)); } catch(e){}
+  });
+  const t = $("#testNotify"); if (t) t.onclick = () => { try { window.AndroidNet.testNotify(); } catch(e){} };
+}
+window.onNotifyPermission = () => { if (lastForecast) load(); };
 
 /* kleine Symbole für Kartentitel */
 const sv = p => `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">${p}</svg>`;

@@ -61,6 +61,9 @@ public class MainActivity extends Activity {
             }
         });
 
+        WeatherCore.createChannels(this);
+        WeatherCore.schedule(this);
+
         if (savedInstanceState != null) web.restoreState(savedInstanceState);
         else web.loadUrl("file:///android_asset/index.html");
     }
@@ -69,6 +72,12 @@ public class MainActivity extends Activity {
     protected void onResume() {
         super.onResume();
         if (web != null) web.evaluateJavascript("window.onAppResume && window.onAppResume()", null);
+    }
+
+    private void askNotifyPermission() {
+        if (Build.VERSION.SDK_INT >= 33 && !WeatherCore.permitted(getApplicationContext())) {
+            runOnUiThread(() -> requestPermissions(new String[]{"android.permission.POST_NOTIFICATIONS"}, 31));
+        }
     }
 
     /* ---------- Standort ---------- */
@@ -87,6 +96,7 @@ public class MainActivity extends Activity {
     @Override
     public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] results) {
         super.onRequestPermissionsResult(requestCode, permissions, results);
+        if (requestCode == 31) { web.evaluateJavascript("window.onNotifyPermission && window.onNotifyPermission()", null); return; }
         if (requestCode != REQ_LOC) return;
         boolean ok = false;
         for (int r : results) if (r == PackageManager.PERMISSION_GRANTED) ok = true;
@@ -149,6 +159,36 @@ public class MainActivity extends Activity {
     /* ---------- Brücke zur Webseite ---------- */
 
     public class Bridge {
+        /** Der angezeigte Ort gilt auch für Widget und Benachrichtigungen. */
+        @JavascriptInterface
+        public void setLocation(String name, double lat, double lon) {
+            WeatherCore.setLocation(getApplicationContext(), name, lat, lon);
+            pool.execute(() -> WeatherCore.run(getApplicationContext()));
+        }
+
+        @JavascriptInterface
+        public String getNotify() {
+            return WeatherCore.settings(getApplicationContext()).toString();
+        }
+
+        @JavascriptInterface
+        public void setNotify(String json) {
+            WeatherCore.saveSettings(getApplicationContext(), json);
+            askNotifyPermission();
+        }
+
+        @JavascriptInterface
+        public boolean hasNotifyPermission() {
+            return WeatherCore.permitted(getApplicationContext());
+        }
+
+        @JavascriptInterface
+        public void testNotify() {
+            if (!WeatherCore.permitted(getApplicationContext())) { askNotifyPermission(); return; }
+            WeatherCore.show(getApplicationContext(), 99, WeatherCore.CH_RAIN, "Wetterwerk",
+                    "So sehen deine Hinweise aus: Regen-Alarm und Unwetterwarnungen für " + WeatherCore.name(getApplicationContext()) + ".", 0);
+        }
+
         @JavascriptInterface
         public void locate() {
             runOnUiThread(MainActivity.this::locate);
