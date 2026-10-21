@@ -220,6 +220,14 @@ button:focus-visible,input:focus-visible{outline:2px solid #fff;outline-offset:2
 .moonhead{display:flex;align-items:center;gap:14px}
 .moonhead b{font:600 18px/1.25 var(--f-display);display:block}
 .moonhead small{color:var(--ink-soft);font-size:13px}
+.past{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:6px}
+.py{display:flex;flex-direction:column;align-items:center;gap:2px;background:rgba(255,255,255,.08);border-radius:14px;padding:8px 2px;text-align:center}
+.py .yr{font:600 12px var(--f-data);color:var(--ink-soft)}
+.py .mx{font:600 17px/1.1 var(--f-display)}
+.py .mn{font-size:12px;color:var(--ink-faint)}
+.py .rn{font-size:11px;color:var(--rain);min-height:15px}
+.py .sn{font-size:11px;color:var(--sun)}
+.pastline{margin:0;font:500 15px/1.4 var(--f-body)}
 .error{display:flex;flex-direction:column;gap:12px;align-items:flex-start}
 .skel{height:14px;border-radius:7px;background:rgba(255,255,255,.18);animation:pulse 1.4s ease-in-out infinite}
 @keyframes pulse{50%{opacity:.45}}
@@ -669,6 +677,7 @@ function render(f, now, alerts=[], radar=null){
     <div class="tile"><span class="label">Gefühlt</span><div class="val num">${deg(feels)}</div><p>${feels<temp-2?"Wind lässt es kälter wirken":feels>temp+2?"Feuchte Luft wirkt wärmer":"Fühlt sich an wie gemessen"}</p></div>
   </div>`;
 
+  html += `<section class="card fadein" id="pastCard"><div class="head"><h2>${cal()} Dieser Tag in den letzten 5 Jahren</h2></div><div class="skel" style="width:70%"></div><div class="skel" style="width:90%"></div></section>`;
   html += moonCard(f.days);
   if (NATIVE && window.AndroidNet.setNotify) html += notifyCard();
 
@@ -677,6 +686,7 @@ function render(f, now, alerts=[], radar=null){
   bindNotify();
   bindFrog();
   if (rc) bindRadar(rc);
+  loadPast(today, temp);
   countUp($("#heroTemp"), Math.round(temp));
 }
 function countUp(el, target){
@@ -865,6 +875,53 @@ function bindFrog(){
     setTimeout(() => { w.className = base; btn.classList.remove("jumping"); delete w.dataset.busy; }, 950);
     typeText($("#frogSay"), nextLine());
   };
+}
+
+/* ================= Dieser Tag in den letzten 5 Jahren ================= */
+function codeKind(code, sunH){
+  if (code>=95) return "thunder";
+  if ((code>=71 && code<=77) || code===85 || code===86) return "snow";
+  if (code===65 || code===67 || code===82) return "heavy";
+  if ((code>=51 && code<=64) || code===66) return "rain";
+  if (code===80 || code===81) return "shower-day";
+  if (code===45 || code===48) return "fog";
+  if (sunH!=null){ if (sunH>=7) return "clear-day"; if (sunH>=3.5) return "partly-day"; if (sunH>=1) return "cloudy"; return "overcast"; }
+  return code<=1 ? "clear-day" : code===2 ? "partly-day" : "cloudy";
+}
+async function loadPast(today, temp){
+  const box = $("#pastCard"); if (!box) return;
+  const y0 = +today.date.slice(0,4), md = today.date.slice(5);
+  const key = `ww-past-${loc.lat.toFixed(2)},${loc.lon.toFixed(2)}-${today.date}`;
+  let rows = store(key);
+  if (!rows){
+    try {
+      rows = await Promise.all([1,2,3,4,5].map(async k => {
+        const y = y0-k, leap = (y%4===0 && y%100!==0) || y%400===0;
+        const d = `${y}-${md==="02-29" && !leap ? "02-28" : md}`;
+        const r = await getJSON(`https://archive-api.open-meteo.com/v1/archive?latitude=${loc.lat}&longitude=${loc.lon}&start_date=${d}&end_date=${d}&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_sum,sunshine_duration&timezone=auto`);
+        const dd = r.daily;
+        return {y, code:dd.weather_code[0], max:dd.temperature_2m_max[0], min:dd.temperature_2m_min[0], rain:dd.precipitation_sum[0], sun:dd.sunshine_duration[0]!=null ? dd.sunshine_duration[0]/3600 : null};
+      }));
+      if (rows.some(r=>r.max==null)) throw new Error("Lücke");
+      store(key, rows);
+    } catch(e){
+      if ($("#pastCard")) $("#pastCard").innerHTML = `<div class="head"><h2>${cal()} Dieser Tag in den letzten 5 Jahren</h2></div><p class="note">Die Wetterdaten der Vorjahre sind gerade nicht erreichbar.</p>`;
+      return;
+    }
+  }
+  const box2 = $("#pastCard"); if (!box2) return;
+  const avg = rows.reduce((a,r)=>a+r.max,0)/rows.length;
+  const diff = today.max - avg;
+  const rainy = rows.filter(r=>r.rain>=1).length;
+  const warm = rows.reduce((a,r)=>r.max>a.max?r:a), cold = rows.reduce((a,r)=>r.max<a.max?r:a);
+  const cmp = Math.abs(diff)<1 ? `Heute wird es mit ${r0(today.max)}° etwa so warm wie im Schnitt der letzten 5 Jahre (${r0(avg)}°).`
+    : `Heute wird es mit ${r0(today.max)}° rund ${r0(Math.abs(diff))}° ${diff>0?"wärmer":"kälter"} als im Schnitt der letzten 5 Jahre (${r0(avg)}°).`;
+  const extra = `Am wärmsten war es ${warm.y} mit ${r0(warm.max)}°, am kühlsten ${cold.y} mit ${r0(cold.max)}°. Geregnet hat es an ${rainy} von 5 Jahren.`;
+  const dm = `${+today.date.slice(8,10)}.${+today.date.slice(5,7)}.`;
+  box2.innerHTML = `<div class="head"><h2>${cal()} Der ${dm} in den letzten 5 Jahren</h2></div>
+    <p class="pastline">${cmp}</p>
+    <div class="past">${rows.slice().reverse().map(r=>`<div class="py"><span class="yr">${r.y}</span>${icon(codeKind(r.code, r.sun),34)}<span class="mx num">${deg(r.max)}</span><span class="mn num">${deg(r.min)}</span><span class="rn num">${r.rain>=0.1?de1(r.rain)+" mm":""}</span><span class="sn num">${r.sun!=null?"☀ "+de1(r.sun)+" h":""}</span></div>`).join("")}</div>
+    <p class="note">${extra} Werte: Höchst- und Tiefsttemperatur, Regenmenge und Sonnenstunden. Daten: Open-Meteo Archiv.</p>`;
 }
 
 /* ================= Mondphasen ================= */
