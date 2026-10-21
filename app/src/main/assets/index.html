@@ -138,10 +138,45 @@ button:focus-visible,input:focus-visible{outline:2px solid #fff;outline-offset:2
 .tog[aria-checked="true"]{background:#5cc08a}
 .tog[aria-checked="true"]::after{transform:translateX(20px)}
 /* Wetterfrosch */
-.frogcard{display:grid;grid-template-columns:132px 1fr;gap:4px 10px;align-items:center;padding:12px 14px 12px 8px}
-.frogpic{width:132px;height:150px;display:flex;align-items:flex-end;justify-content:center;cursor:pointer;background:none;border:0;padding:0}
-.frogpic img{max-width:132px;max-height:150px;display:block;filter:drop-shadow(0 6px 14px rgba(0,20,50,.3));transform-origin:50% 100%}
-.frogpic img.night{border-radius:18px}
+.frogcard{display:grid;grid-template-columns:150px 1fr;gap:4px 10px;align-items:center;padding:10px 14px 10px 6px;overflow:hidden}
+.stage{position:relative;width:150px;height:176px;cursor:pointer;background:none;border:0;padding:0;overflow:visible}
+.stage .glow{position:absolute;left:50%;top:46%;width:170px;height:170px;margin:-85px 0 0 -85px;border-radius:50%;background:radial-gradient(circle,rgba(255,255,255,.32),rgba(255,255,255,0) 65%);pointer-events:none}
+.stage.sun .glow{background:radial-gradient(circle,rgba(255,224,130,.55),rgba(255,224,130,0) 65%)}
+.stage .rays{position:absolute;left:50%;top:44%;width:210px;height:210px;margin:-105px 0 0 -105px;border-radius:50%;background:repeating-conic-gradient(rgba(255,236,170,.2) 0 8deg,transparent 8deg 22deg);-webkit-mask:radial-gradient(circle,#000 25%,transparent 68%);mask:radial-gradient(circle,#000 25%,transparent 68%);animation:spin 40s linear infinite;pointer-events:none}
+.stage .shadow{position:absolute;left:50%;bottom:4px;width:96px;height:14px;margin-left:-48px;border-radius:50%;background:radial-gradient(rgba(0,15,35,.45),rgba(0,15,35,0) 70%);transition:transform .3s}
+.stage .fx{position:absolute;inset:-6px;pointer-events:none;overflow:hidden;border-radius:20px}
+.frog{position:absolute;left:0;right:0;bottom:8px;width:fit-content;margin:0 auto;transform-origin:50% 100%}
+.frog img{display:block;max-width:146px;max-height:166px;filter:drop-shadow(0 4px 10px rgba(0,20,50,.28));transform-origin:50% 100%;animation:breathe 3.2s ease-in-out infinite}
+.frog img.night{border-radius:18px}
+@keyframes breathe{0%,100%{transform:scale(1,1)}50%{transform:scale(1.025,.975)}}
+.frog.idle-hop{animation:ihop .7s cubic-bezier(.3,.7,.4,1)}
+@keyframes ihop{0%{transform:scale(1.06,.9)}35%{transform:translateY(-14px) scale(.96,1.05)}70%{transform:translateY(0) scale(1.05,.93)}100%{transform:none}}
+.frog.idle-look{animation:ilook 1.8s ease-in-out}
+@keyframes ilook{20%{transform:rotate(-5deg)}45%{transform:rotate(-5deg)}65%{transform:rotate(5deg)}85%{transform:rotate(5deg)}100%{transform:none}}
+.frog.idle-wiggle{animation:iwig .9s ease-in-out}
+@keyframes iwig{15%{transform:rotate(4deg) scale(1.02)}30%{transform:rotate(-4deg)}45%{transform:rotate(3deg)}60%{transform:rotate(-2deg)}100%{transform:none}}
+.frog.big-jump{animation:bjump .9s cubic-bezier(.25,.8,.35,1)}
+@keyframes bjump{0%{transform:scale(1.12,.82)}12%{transform:scale(1.12,.82)}45%{transform:translateY(-46px) scale(.9,1.12) rotate(-6deg)}62%{transform:translateY(-40px) scale(.95,1.06) rotate(5deg)}82%{transform:translateY(0) scale(1.12,.85)}100%{transform:none}}
+.stage.jumping .shadow{animation:shad .9s ease}
+@keyframes shad{45%,62%{transform:scale(.55);opacity:.5}}
+.frog.shiver img{animation:shake .35s ease-in-out infinite}
+.frog.sway img{animation:sway 2.4s ease-in-out infinite;transform-origin:50% 100%}
+@keyframes sway{25%{transform:rotate(-3.5deg)}75%{transform:rotate(3.5deg)}}
+.quak{position:absolute;left:58%;top:6px;font:700 15px var(--f-display);color:#fff;text-shadow:0 2px 8px rgba(0,20,50,.5);pointer-events:none;animation:quak 1.2s ease-out forwards}
+@keyframes quak{0%{opacity:0;transform:translateY(10px) scale(.6)}20%{opacity:1;transform:translateY(0) scale(1.1)}100%{opacity:0;transform:translateY(-34px) rotate(8deg)}}
+.fx i{position:absolute;display:block}
+.fx .drop{width:2px;height:14px;border-radius:2px;background:linear-gradient(rgba(190,228,255,0),rgba(190,228,255,.9));animation:fall linear infinite}
+@keyframes fall{from{transform:translateY(-30px)}to{transform:translateY(210px)}}
+.fx .flake{width:6px;height:6px;border-radius:50%;background:#fff;opacity:.9;animation:snow linear infinite}
+@keyframes snow{0%{transform:translate(0,-20px)}50%{transform:translate(10px,90px)}100%{transform:translate(-6px,200px)}}
+.fx .star{width:3px;height:3px;border-radius:50%;background:#fff;animation:twinkle ease-in-out infinite}
+@keyframes twinkle{50%{opacity:.15;transform:scale(.6)}}
+.fx .gust{height:2px;width:46px;border-radius:2px;background:linear-gradient(90deg,rgba(255,255,255,0),rgba(255,255,255,.75),rgba(255,255,255,0));animation:gust ease-in-out infinite}
+@keyframes gust{from{transform:translateX(-80px);opacity:0}30%{opacity:1}to{transform:translateX(200px);opacity:0}}
+.fx .flash{inset:0;background:rgba(235,240,255,.85);opacity:0;animation:flash 5s infinite}
+@keyframes flash{0%,88%,92%,96%,100%{opacity:0}90%,94%{opacity:.8}}
+.bubble{animation:pop .35s cubic-bezier(.3,1.6,.5,1) both}
+@keyframes pop{from{transform:scale(.85);opacity:0}to{transform:none;opacity:1}}
 .bubble{position:relative;background:#fff;color:#18304d;border-radius:18px;padding:12px 14px;font:500 15px/1.4 var(--f-body);box-shadow:0 6px 18px rgba(0,20,50,.18)}
 .bubble::before{content:"";position:absolute;left:-8px;top:50%;margin-top:-8px;border:8px solid transparent;border-left:0;border-right-color:#fff}
 .bubble small{display:block;margin-top:6px;color:#5d7088;font-size:11.5px;font-weight:400}
@@ -177,6 +212,14 @@ button:focus-visible,input:focus-visible{outline:2px solid #fff;outline-offset:2
 .slot .sl{font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-faint);font-weight:600}
 .slot .st{font:600 18px/1.1 var(--f-display)}
 .slot .sr{font-size:11px;color:var(--rain);min-height:15px}
+.moons{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:12px 6px}
+.moon{display:flex;flex-direction:column;align-items:center;gap:3px;text-align:center}
+.moon .md{font-size:12px;font-weight:600}
+.moon .mp{font:500 12px var(--f-data);color:var(--ink-soft)}
+.moon.today .md{color:#fff;text-decoration:underline;text-underline-offset:3px}
+.moonhead{display:flex;align-items:center;gap:14px}
+.moonhead b{font:600 18px/1.25 var(--f-display);display:block}
+.moonhead small{color:var(--ink-soft);font-size:13px}
 .error{display:flex;flex-direction:column;gap:12px;align-items:flex-start}
 .skel{height:14px;border-radius:7px;background:rgba(255,255,255,.18);animation:pulse 1.4s ease-in-out infinite}
 @keyframes pulse{50%{opacity:.45}}
@@ -563,7 +606,7 @@ function render(f, now, alerts=[], radar=null){
   // Regen: zuerst DWD-Radar (5-Minuten-Schritte), sonst Wettermodell
   const rc = radarCast(radar);
   if (rc) html += radarCard(rc);
-  else if (now && now.minutely_15 && now.minutely_15.precipitation){
+  if (now && now.minutely_15 && now.minutely_15.precipitation){
     const mt = now.minutely_15.time, mp = now.minutely_15.precipitation.map(v=>v||0);
     const maxP = Math.max(.6, ...mp), wetNow = mp[0]>=.05, fw = mp.findIndex(v=>v>=.05), fd = mp.findIndex(v=>v<.05);
     const txt = wetNow ? (fd<0 ? "Es regnet weiter, mindestens 3 Stunden." : `Regen hört gegen ${hhmm(mt[fd])} Uhr auf.`)
@@ -573,7 +616,7 @@ function render(f, now, alerts=[], radar=null){
       <p class="nowtext">${txt}</p>
       <div class="bars" role="img" aria-label="${txt}">${mp.map(v=>`<i class="${v<.05?"zero":""}" style="height:${Math.max(6,v/maxP*100)}%"></i>`).join("")}</div>
       <div class="axis num"><span>Jetzt</span><span>${hhmm(mt[4])}</span><span>${hhmm(mt[8])}</span><span>${hhmm(mt[11])}</span></div>
-      <p class="src">Radar für diesen Ort nicht verfügbar, Werte aus dem Wettermodell.</p>
+      <p class="src">${rc ? "Aus den Wettermodellen, 15-Minuten-Schritte." : "Radar für diesen Ort nicht verfügbar, Werte aus den Wettermodellen."}</p>
     </section>`;
   }
 
@@ -626,6 +669,7 @@ function render(f, now, alerts=[], radar=null){
     <div class="tile"><span class="label">Gefühlt</span><div class="val num">${deg(feels)}</div><p>${feels<temp-2?"Wind lässt es kälter wirken":feels>temp+2?"Feuchte Luft wirkt wärmer":"Fühlt sich an wie gemessen"}</p></div>
   </div>`;
 
+  html += moonCard(f.days);
   if (NATIVE && window.AndroidNet.setNotify) html += notifyCard();
 
   clearInterval(radarTimer); radarTimer = null;
@@ -757,27 +801,121 @@ function frogCard(f, cur, today, temp, alerts, nowISO){
   const mood = frogMood(frogCtx);
   frogCtx.mood = mood; frogCtx.lines = frogLines(frogCtx, mood); frogCtx.last = -1;
   frogCtx.pics = PICS[mood] || ["wolkig"]; frogCtx.pi = Math.floor(Math.random()*frogCtx.pics.length);
-  const anim = mood==="gewitter" ? "frog-shake" : mood==="wind" ? "frog-wobble" : "frog-bob";
+  const night = mood.startsWith("nacht");
+  const cls = mood==="gewitter" ? "shiver" : (mood==="wind"||mood==="kalt"||mood==="schnee") ? (mood==="wind"?"sway":"shiver") : "";
   return `<section class="card frogcard fadein">
-    <button class="frogpic" id="frogBtn" type="button" aria-label="Wetterfrosch antippen"><img id="frogImg" class="${anim}${mood.startsWith("nacht")?" night":""}" src="frog/${frogCtx.pics[frogCtx.pi]}.webp" alt="Wetterfrosch" data-anim="${anim}"></button>
+    <button class="stage${/sonne|hitze|heiter/.test(mood)?" sun":""}" id="frogBtn" type="button" aria-label="Wetterfrosch antippen">
+      ${/sonne|hitze/.test(mood)?'<span class="rays"></span>':""}<span class="glow"></span><span class="shadow"></span>
+      <span class="frog ${mood==="kalt"||mood==="schnee"?"":cls}" id="frogWrap"><img id="frogImg" class="${night?"night":""}" src="frog/${frogCtx.pics[frogCtx.pi]}.webp" alt="Wetterfrosch"></span>
+      <span class="fx">${frogFx(mood)}</span>
+    </button>
     <div class="bubble" id="frogSay">${nextLine()}<small>Tipp auf mich!</small></div></section>`;
+}
+function frogFx(mood){
+  const R = (a,b) => (a + Math.random()*(b-a)).toFixed(2);
+  let h = "";
+  if (/regen|schauer|starkregen/.test(mood)){ const n = mood==="starkregen"?22:mood==="regen"?14:8; for (let i=0;i<n;i++) h += `<i class="drop" style="left:${R(0,100)}%;top:0;animation-duration:${R(.6,1)}s;animation-delay:-${R(0,1)}s"></i>`; }
+  if (mood==="schnee"||mood==="glatt"){ for (let i=0;i<12;i++) h += `<i class="flake" style="left:${R(0,100)}%;top:0;width:${R(3,7)}px;height:auto;aspect-ratio:1;animation-duration:${R(3,6)}s;animation-delay:-${R(0,6)}s"></i>`; }
+  if (mood.startsWith("nacht")){ for (let i=0;i<12;i++) h += `<i class="star" style="left:${R(0,100)}%;top:${R(0,55)}%;animation-duration:${R(1.6,3.4)}s;animation-delay:-${R(0,3)}s"></i>`; }
+  if (mood==="wind"){ for (let i=0;i<6;i++) h += `<i class="gust" style="top:${R(10,80)}%;animation-duration:${R(1.4,2.4)}s;animation-delay:-${R(0,2)}s"></i>`; }
+  if (mood==="gewitter") h += `<i class="flash"></i>` + Array.from({length:10},()=>`<i class="drop" style="left:${R(0,100)}%;top:0;animation-duration:${R(.5,.8)}s;animation-delay:-${R(0,1)}s"></i>`).join("");
+  return h;
 }
 function nextLine(){
   const L = frogCtx.lines; let i = Math.floor(Math.random()*L.length);
   if (L.length>1 && i===frogCtx.last) i = (i+1)%L.length;
   frogCtx.last = i; return L[i];
 }
+let frogIdleT = null;
+function frogIdle(){
+  clearTimeout(frogIdleT);
+  frogIdleT = setTimeout(() => {
+    const w = $("#frogWrap");
+    if (!w || reduce) return;
+    if (!w.dataset.busy && document.visibilityState==="visible"){
+      const base = w.className.replace(/\s*(idle-\w+|big-jump)/g,"");
+      const act = pick(frogCtx.mood==="gewitter" ? ["idle-look"] : ["idle-hop","idle-look","idle-wiggle","idle-hop"]);
+      w.className = base + " " + act;
+      setTimeout(() => { if (w.isConnected) w.className = base; }, 1900);
+    }
+    frogIdle();
+  }, 3500 + Math.random()*3500);
+}
+function typeText(el, text){
+  if (reduce){ el.innerHTML = text + `<small>Tipp auf mich!</small>`; return; }
+  el.style.animation = "none"; void el.offsetWidth; el.style.animation = "";
+  let i = 0; el.innerHTML = `<span></span><small>Tipp auf mich!</small>`;
+  const sp = el.firstChild;
+  const t = setInterval(() => { i += 2; sp.textContent = text.slice(0,i); if (i >= text.length){ clearInterval(t); } }, 22);
+}
 function bindFrog(){
   const btn = $("#frogBtn"); if (!btn) return;
+  frogIdle();
   btn.onclick = () => {
-    const img = $("#frogImg"), anim = img.dataset.anim;
-    img.className = "frog-jump" + (frogCtx.mood.startsWith("nacht") ? " night" : "");
+    const w = $("#frogWrap"), img = $("#frogImg");
+    if (w.dataset.busy) return;
+    w.dataset.busy = "1";
+    const base = w.className.replace(/\s*(idle-\w+|big-jump)/g,"");
+    w.className = base + " big-jump"; btn.classList.add("jumping");
+    const q = document.createElement("span"); q.className = "quak"; q.textContent = pick(["Quak!","Quaak!","Quak quak!","Hüpf!"]); btn.appendChild(q);
+    setTimeout(() => q.remove(), 1300);
     setTimeout(() => {
       if (frogCtx.pics.length>1){ frogCtx.pi = (frogCtx.pi+1)%frogCtx.pics.length; img.src = `frog/${frogCtx.pics[frogCtx.pi]}.webp`; }
-      img.className = anim + (frogCtx.mood.startsWith("nacht") ? " night" : "");
-    }, 650);
-    $("#frogSay").innerHTML = nextLine() + `<small>Tipp auf mich!</small>`;
+    }, 420);
+    setTimeout(() => { w.className = base; btn.classList.remove("jumping"); delete w.dataset.busy; }, 950);
+    typeText($("#frogSay"), nextLine());
   };
+}
+
+/* ================= Mondphasen ================= */
+const SYN = 29.530588853, NEW0 = Date.UTC(2000,0,6,18,14);
+function moonAge(ms){ let a = ((ms - NEW0)/864e5) % SYN; return a<0 ? a+SYN : a; }
+function moonIllum(age){ return (1 - Math.cos(2*Math.PI*age/SYN))/2; }
+function moonName(age){
+  const p = age/SYN;
+  if (p<0.033 || p>0.967) return "Neumond";
+  if (p<0.216) return "Zunehmende Sichel";
+  if (p<0.284) return "Erstes Viertel";
+  if (p<0.467) return "Zunehmender Mond";
+  if (p<0.533) return "Vollmond";
+  if (p<0.716) return "Abnehmender Mond";
+  if (p<0.784) return "Letztes Viertel";
+  return "Abnehmende Sichel";
+}
+function moonSVG(age, size){
+  const r = 20, p = age/SYN, k = Math.cos(2*Math.PI*p), rx = Math.abs(k)*r;
+  const id = "mg"+Math.random().toString(36).slice(2,6);
+  let lit;
+  if (p<0.5){ // zunehmend: rechts hell
+    lit = `M0,${-r} A${r},${r} 0 0 1 0,${r} A${rx},${r} 0 0 ${k>0?0:1} 0,${-r} Z`;
+  } else {   // abnehmend: links hell
+    lit = `M0,${-r} A${r},${r} 0 0 0 0,${r} A${rx},${r} 0 0 ${k>0?1:0} 0,${-r} Z`;
+  }
+  return `<svg width="${size}" height="${size}" viewBox="-24 -24 48 48" aria-hidden="true">
+    <defs><radialGradient id="${id}" cx=".4" cy=".35" r=".75"><stop offset="0" stop-color="#fffbe8"/><stop offset="1" stop-color="#e2dcc4"/></radialGradient></defs>
+    <circle r="${r}" fill="rgba(10,20,40,.55)" stroke="rgba(255,255,255,.18)"/>
+    <path d="${lit}" fill="url(#${id})"/>
+    <g fill="rgba(150,140,110,.25)"><circle cx="-6" cy="-7" r="3.2"/><circle cx="6" cy="4" r="4"/><circle cx="-3" cy="9" r="2.2"/></g>
+  </svg>`;
+}
+function nextPhase(ms, target){ // target 0 = Neumond, 0.5 = Vollmond
+  const age = moonAge(ms), want = target*SYN;
+  let d = want - age; if (d <= 0.3) d += SYN;
+  return new Date(ms + d*864e5);
+}
+function moonCard(days){
+  const nowMs = Date.now(), age = moonAge(nowMs), pct = Math.round(moonIllum(age)*100);
+  const full = nextPhase(nowMs, .5), neu = nextPhase(nowMs, 0);
+  const fmt = d => `${WDL[(d.getDay()+6)%7]}, ${d.getDate()}.${d.getMonth()+1}.`;
+  const cells = days.slice(0,10).map((d,i) => {
+    const ms = new Date(d.date+"T22:00:00").getTime(), a = moonAge(ms), il = Math.round(moonIllum(a)*100);
+    return `<div class="moon${i===0?" today":""}" title="${moonName(a)}">${moonSVG(a,40)}<span class="md">${i===0?"Heute":wd(d.date)+" "+d.date.slice(8,10)+"."}</span><span class="mp">${il} %</span></div>`;
+  }).join("");
+  return `<section class="card fadein"><div class="head"><h2>${sv('<path d="M20 14.5A8.5 8.5 0 1 1 9.5 4a7 7 0 0 0 10.5 10.5z"/>')} Mondphasen</h2><span class="label">10 Tage</span></div>
+    <div class="moonhead">${moonSVG(age,64)}<div><b>${moonName(age)}</b><small>Heute zu ${pct} % beleuchtet</small><br><small>Vollmond: ${fmt(full)} · Neumond: ${fmt(neu)}</small></div></div>
+    <div class="moons">${cells}</div>
+    <p class="note">Prozent = wie viel vom Mond am Abend sichtbar beleuchtet ist.</p>
+  </section>`;
 }
 
 /* ================= Regenradar (DWD über Bright Sky) ================= */
@@ -875,7 +1013,12 @@ function bindRadar(rc){
   function stop(){ clearInterval(radarTimer); radarTimer = null; play.innerHTML = playIco; play.setAttribute("aria-label","Abspielen"); }
   function start(){
     stop(); play.innerHTML = pauseIco; play.setAttribute("aria-label","Anhalten");
-    radarTimer = setInterval(() => { let i = +slide.value + 1; if (i >= rc.frames.length) i = 0; draw(i); }, 450);
+    let hold = 0;
+    radarTimer = setInterval(() => {
+      let i = +slide.value + 1;
+      if (i >= rc.frames.length){ if (++hold < 3) return; hold = 0; i = 0; }
+      draw(i);
+    }, 900);
   }
   play.onclick = () => radarTimer ? stop() : start();
   slide.oninput = () => { stop(); draw(+slide.value); };
