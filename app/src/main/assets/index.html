@@ -138,21 +138,32 @@ button:focus-visible,input:focus-visible{outline:2px solid #fff;outline-offset:2
 .tog[aria-checked="true"]{background:#5cc08a}
 .tog[aria-checked="true"]::after{transform:translateX(20px)}
 /* Wetterfrosch */
-.frogcard{display:grid;grid-template-columns:118px 1fr;gap:4px 10px;align-items:center;padding:12px 14px 12px 6px}
-.frogcard svg{width:112px;height:auto;display:block;overflow:visible;cursor:pointer}
+.frogcard{display:grid;grid-template-columns:132px 1fr;gap:4px 10px;align-items:center;padding:12px 14px 12px 8px}
+.frogpic{width:132px;height:150px;display:flex;align-items:flex-end;justify-content:center;cursor:pointer;background:none;border:0;padding:0}
+.frogpic img{max-width:132px;max-height:150px;display:block;filter:drop-shadow(0 6px 14px rgba(0,20,50,.3));transform-origin:50% 100%}
+.frogpic img.night{border-radius:18px}
 .bubble{position:relative;background:#fff;color:#18304d;border-radius:18px;padding:12px 14px;font:500 15px/1.4 var(--f-body);box-shadow:0 6px 18px rgba(0,20,50,.18)}
 .bubble::before{content:"";position:absolute;left:-8px;top:50%;margin-top:-8px;border:8px solid transparent;border-left:0;border-right-color:#fff}
 .bubble small{display:block;margin-top:6px;color:#5d7088;font-size:11.5px;font-weight:400}
 .frog-bob{animation:bob 2.6s ease-in-out infinite}
 @keyframes bob{50%{transform:translateY(-2.5px)}}
-.frog-eyes{transform-box:fill-box;transform-origin:center;animation:blink 5s infinite}
-@keyframes blink{0%,46%,50%,100%{transform:scaleY(1)}48%{transform:scaleY(.1)}}
 .frog-jump{animation:jump .6s cubic-bezier(.3,.7,.4,1)}
 @keyframes jump{30%{transform:translateY(-22px) rotate(-6deg)}60%{transform:translateY(0) rotate(4deg)}80%{transform:translateY(-4px)}}
 .frog-shake{animation:shake .5s ease-in-out infinite}
 @keyframes shake{25%{transform:translateX(-1.2px)}75%{transform:translateX(1.2px)}}
-.zzz{animation:zzz 3s ease-in-out infinite;transform-box:fill-box}
-@keyframes zzz{0%{opacity:0;transform:translate(0,4px)}40%{opacity:1}100%{opacity:0;transform:translate(6px,-10px)}}
+.frog-wobble{animation:wobble 2.2s ease-in-out infinite}
+@keyframes wobble{25%{transform:rotate(-2.5deg)}75%{transform:rotate(2.5deg)}}
+
+/* Regenradar */
+.radar{display:grid;grid-template-columns:1fr;gap:10px}
+.radar canvas{width:100%;max-width:340px;aspect-ratio:1;justify-self:center;border-radius:16px;background:rgba(5,15,30,.45);display:block}
+.rctl{display:flex;align-items:center;gap:10px}
+.rctl input{flex:1;min-width:0;accent-color:#fff}
+.rctl .play{width:36px;height:36px;border-radius:50%;background:#fff;color:#14304f;display:grid;place-items:center;flex:none}
+.rtime{font:600 13px var(--f-data);min-width:84px;text-align:right}
+.rlegend{display:flex;align-items:center;gap:8px;font-size:11px;color:var(--ink-faint)}
+.rlegend i{flex:1;height:6px;border-radius:3px;background:linear-gradient(90deg,#9ad8ff,#3a8dff,#2fd16a,#ffe14d,#ff9a3c,#ff4d4d,#c45cff)}
+.src{font-size:11px;color:var(--ink-faint)}
 
 /* 5 Tage morgens/mittags/abends */
 .five{display:flex;flex-direction:column}
@@ -402,13 +413,14 @@ async function load(){
   $("#placeName").textContent = loc.name;
   const base = `https://api.open-meteo.com/v1/forecast?latitude=${loc.lat}&longitude=${loc.lon}&timezone=auto`;
   try {
-    const [multi, alerts, now] = await Promise.all([
+    const [multi, alerts, radar, now] = await Promise.all([
       getJSON(`${base}&hourly=${HOURLY.join(",")}&daily=sunrise,sunset,uv_index_max&models=${MODELS.map(m=>m.id).join(",")}&forecast_days=10`),
       getJSON(`https://api.brightsky.dev/alerts?lat=${loc.lat}&lon=${loc.lon}`).catch(()=>null),
+      getJSON(`https://api.brightsky.dev/radar?lat=${loc.lat}&lon=${loc.lon}&distance=25000&format=plain`).catch(()=>null),
       getJSON(`${base}&current=temperature_2m,apparent_temperature,is_day,relative_humidity_2m,wind_speed_10m,wind_gusts_10m,wind_direction_10m,precipitation,pressure_msl,dew_point_2m&minutely_15=precipitation&forecast_minutely_15=12`).catch(()=>null)
     ]);
     lastForecast = build(multi);
-    render(lastForecast, now, alerts && alerts.alerts || []);
+    render(lastForecast, now, alerts && alerts.alerts || [], radar);
     if (NATIVE && window.AndroidNet.setLocation) try{ window.AndroidNet.setLocation(loc.name, loc.lat, loc.lon); }catch(e){}
     store("ww-last", {loc, t:Date.now()});
     $("#updated").textContent = "Aktualisiert um " + new Date().toLocaleTimeString("de-DE",{hour:"2-digit",minute:"2-digit"}) + " Uhr";
@@ -512,7 +524,7 @@ function tempColor(t){
 function uvInfo(u){ if (u==null) return ["–",""]; return u<3?["gering","Kein Schutz nötig"]:u<6?["mäßig","Sonnenschutz ab mittags"]:u<8?["hoch","Sonnencreme und Schatten"]:u<11?["sehr hoch","Mittagssonne meiden"]:["extrem","Draußen möglichst meiden"]; }
 
 /* ================= Anzeige ================= */
-function render(f, now, alerts=[]){
+function render(f, now, alerts=[], radar=null){
   const nowISO = localNowISO(f.offset), hourISO = nowISO.slice(0,13)+":00";
   let start = f.hours.findIndex(x=>x.time>=hourISO); if (start<0) start = 0;
   const cur = f.hours[start], today = f.days.find(d=>d.date===cur.date) || f.days[0];
@@ -548,8 +560,10 @@ function render(f, now, alerts=[]){
   // Wetterfrosch
   html += frogCard(f, cur, today, temp, alerts, nowISO);
 
-  // Regen 3 Stunden
-  if (now && now.minutely_15 && now.minutely_15.precipitation){
+  // Regen: zuerst DWD-Radar (5-Minuten-Schritte), sonst Wettermodell
+  const rc = radarCast(radar);
+  if (rc) html += radarCard(rc);
+  else if (now && now.minutely_15 && now.minutely_15.precipitation){
     const mt = now.minutely_15.time, mp = now.minutely_15.precipitation.map(v=>v||0);
     const maxP = Math.max(.6, ...mp), wetNow = mp[0]>=.05, fw = mp.findIndex(v=>v>=.05), fd = mp.findIndex(v=>v<.05);
     const txt = wetNow ? (fd<0 ? "Es regnet weiter, mindestens 3 Stunden." : `Regen hört gegen ${hhmm(mt[fd])} Uhr auf.`)
@@ -559,6 +573,7 @@ function render(f, now, alerts=[]){
       <p class="nowtext">${txt}</p>
       <div class="bars" role="img" aria-label="${txt}">${mp.map(v=>`<i class="${v<.05?"zero":""}" style="height:${Math.max(6,v/maxP*100)}%"></i>`).join("")}</div>
       <div class="axis num"><span>Jetzt</span><span>${hhmm(mt[4])}</span><span>${hhmm(mt[8])}</span><span>${hhmm(mt[11])}</span></div>
+      <p class="src">Radar für diesen Ort nicht verfügbar, Werte aus dem Wettermodell.</p>
     </section>`;
   }
 
@@ -613,9 +628,11 @@ function render(f, now, alerts=[]){
 
   if (NATIVE && window.AndroidNet.setNotify) html += notifyCard();
 
+  clearInterval(radarTimer); radarTimer = null;
   $("#app").innerHTML = html;
   bindNotify();
   bindFrog();
+  if (rc) bindRadar(rc);
   countUp($("#heroTemp"), Math.round(temp));
 }
 function countUp(el, target){
@@ -626,85 +643,124 @@ function countUp(el, target){
 }
 
 /* ================= Wetterfrosch ================= */
-const HEIGHT = {"clear-day":1,"clear-night":1,"partly-day":.8,"partly-night":.8,"cloudy":.55,"overcast":.42,"fog":.36,"shower-day":.3,"shower-night":.3,"rain":.18,"heavy":.06,"snow":.22,"thunder":0};
 const pick = a => a[Math.floor(Math.random()*a.length)];
 let frogCtx = null;
-function frogLines(c){
-  const {kind, temp, max, min, gust, night, warn, tmrw} = c;
-  if (warn) return [`Achtung, der DWD warnt: ${warn}. Ich bleib heute vorsichtshalber ganz unten.`, `${warn}! Ich hab mein Glas schon festgeschraubt. Pass gut auf dich auf.`];
-  if (night) return [`Psst, ich schlafe schon. Morgen gibt's ${tmrw}.`, `Gute Nacht! Morgen ${tmrw}. Ich träume derweil von fetten Fliegen.`, `Schon dunkel. Ich zähle Schäfchenwolken … morgen ${tmrw}.`];
-  const L = {
-    clear:[`Sonnenbrille auf, Leiter hoch! Bis zu ${max}° heute, ich sonne mich ganz oben.`, `So schönes Wetter, ich überlege, mein Glas zu kündigen.`, `Kein Wölkchen in Sicht. Und falls doch, war's nicht meine Schuld.`],
-    partly:[`Ein paar Wolken, viel Sonne. Ich bleib im oberen Drittel, sicher ist sicher.`, `Heiter bis wolkig. Mehr verrate ich nur gegen eine Fliege.`, `Mal Sonne, mal Wolke, wie meine Laune vor dem Frühstück.`],
-    cloud:[`Grau in grau. Ich halte mich in der Mitte und warte ab.`, `Wolken wie Watte. Regen? Die Modelle sagen eher nein.`, `Kein Sonnenbad heute. Ich lese lieber den Wetterbericht. Meinen eigenen.`],
-    fog:[`Nebel! Ich sehe meine eigene Leiter nicht mehr.`, `So neblig, dass sich sogar die Fliegen verirren. Fahr vorsichtig!`],
-    shower:[`Schauerwetter! Schirm einpacken, auch wenn's zwischendurch sonnig ist.`, `Mal nass, mal trocken. Ich bleib flexibel, du am besten auch.`],
-    rain:[`Schirm auf! Für mich ist das Wellness, für dich eher nicht.`, `Es regnet. Ich bleib unten am Wasser, mein Lieblingsplatz.`, `Regenjacke statt Sonnenbrille. Glaub mir, ich bin Experte für nass.`],
-    heavy:[`Das schüttet wie aus Eimern! Selbst mir ist das zu viel Wasser.`, `Heute lieber drinnen bleiben. Ich hab mein Glas schon abgedichtet.`],
-    thunder:[`Gewitter! Ich hab mich ganz unten versteckt. Mach du das auch.`, `Es donnert! Ich bin nicht ängstlich, nur … sehr vorsichtig.`],
-    snow:[`Schnee! Mütze auf, Schal um, und dann bitte heißen Tee.`, `Es schneit! Für einen Frosch eine echte Herausforderung.`]
-  };
-  const key = /clear/.test(kind)?"clear":/partly/.test(kind)?"partly":/shower/.test(kind)?"shower":(kind==="cloudy"||kind==="overcast")?"cloud":kind;
-  let lines = (L[key]||L.cloud).slice();
-  if (min<=3 && key!=="snow") lines = lines.map(l => l + ` Und zieh dich warm an, heute früh nur ${min}°.`);
-  if (gust>=50) lines.push(`Halt deine Mütze fest! Böen bis ${gust} km/h, ich klammere mich an meine Sprosse.`);
-  if (temp>=27) lines.push(`${temp}°! Ich hätte gern einen Eiswürfel in mein Glas.`);
-  return lines;
+const SAY = {
+  sonne:[
+    {t:"Achtung, Sonnenbrand-Gefahr! Ich bin zwar schon grün, muss aber nicht rot werden.", min:20},
+    {t:"Perfektes Wetter zum Fliegenfangen! Mach dir einen schönen Tag."},
+    {t:"Es ist so heiß, sogar mein Schatten sucht Schatten.", min:27},
+    {t:"Creme dich gut ein! Wurstbrät gehört auf den Grill, nicht auf die Haut.", min:22},
+    {t:"30 Grad im Schatten. Zeit, die Leiter gegen einen Pool einzutauschen!", min:29},
+    {t:"Sonne pur! Wer heute schlechte Laune hat, muss zum Lachen in den Keller – da ist es wenigstens kühl.", min:18},
+    {t:"Sonne satt! Heute klettere ich ganz nach oben auf meine Leiter."}
+  ],
+  regen:[
+    "Endlich mal wieder richtiges Froschwetter! Für dich gilt aber: Regenschirm nicht vergessen.",
+    "Das ist kein Regen, das ist flüssiger Sonnenschein mit Anlauf!",
+    "Gute Nachricht: Schmutzige Autos werden heute kostenlos gewaschen.",
+    "Ich mag ja Wasser, aber das geht selbst mir auf die Nerven.",
+    "Perfektes Wetter, um drinnen zu bleiben und Serien zu schauen."
+  ],
+  starkregen:[
+    "Es regnet so stark, ich überlege mir ein Tretboot zuzulegen.",
+    "Ich mag ja Wasser, aber das geht selbst mir auf die Nerven.",
+    "Perfektes Wetter, um drinnen zu bleiben und Serien zu schauen."
+  ],
+  schauer:[
+    "Endlich mal wieder richtiges Froschwetter! Für dich gilt aber: Regenschirm nicht vergessen.",
+    "Mal Sonne, mal Schauer. Schirm einpacken, dann kann dir nichts passieren.",
+    "Das ist kein Regen, das ist flüssiger Sonnenschein mit Anlauf!",
+    "Nach dem Schauer kommt der Regenbogen. Augen offen halten!"
+  ],
+  kalt:[
+    "Brrr! Mir friert glatt das Quaken ein!",
+    "Hab meine dicke Fliegenfellmütze aufgesetzt. Zieh dich lieber auch warm an!",
+    "Kalt? Nein, das ist nur extrem erfrischende Luft!",
+    "Zeit für heißen Kakao und dicke Socken."
+  ],
+  schnee:[
+    "Schneeflocken sind auch nur Konfetti der Natur. Nur kälter.",
+    "Brrr! Mir friert glatt das Quaken ein!",
+    "Hab meine dicke Fliegenfellmütze aufgesetzt. Zieh dich lieber auch warm an!",
+    "Zeit für heißen Kakao und dicke Socken."
+  ],
+  glatt:[
+    "Achtung Glatteis! Heute bitte nicht hüpfen, sondern schlittern.",
+    "Brrr! Mir friert glatt das Quaken ein!",
+    "Zeit für heißen Kakao und dicke Socken."
+  ],
+  wind:[
+    "Halt dich fest! Bei dem Wind fliege ich glatt ohne Flügel.",
+    "Frisur? Heute übernimmt der Wind das Styling.",
+    "Perfektes Wetter zum Drachensteigen – oder um fliegen zu lernen!",
+    "Der Wind pustet heute alle Sorgen weg... und hoffentlich auch die Wolken."
+  ],
+  gewitter:[
+    "Boom! Da oben wird heute ordentlich getrommelt. Bleib lieber drinnen!",
+    "Blitz und Donner – die Natur macht heute eine Lightshow.",
+    "Ich hab mich sicherheitshalber unter einem großen Blatt versteckt."
+  ],
+  nacht:[
+    "Der Mond scheint, die Sterne funkeln – Zeit für den Frosch-Schlafanzug.",
+    "Gute Nacht! Morgen quaken wir uns wieder!",
+    "Sternenklarer Himmel. Verpass keine Sternschnuppe!"
+  ],
+  nachtwolkig:[
+    "Gute Nacht! Morgen quaken wir uns wieder!",
+    "Zeit für den Frosch-Schlafanzug. Die Sterne verstecken sich heute hinter Wolken."
+  ],
+  wolkig:[
+    "Grau in grau. Ich halte mich in der Mitte meiner Leiter und warte ab.",
+    "Wolken wie Watte. Regen? Die Wettermodelle sagen eher nein.",
+    "Kein Sonnenbad heute. Ich lese lieber den Wetterbericht. Meinen eigenen."
+  ],
+  nebel:[
+    "Nebel! Ich sehe meine eigene Leiter nicht mehr.",
+    "So neblig, dass sich sogar die Fliegen verirren. Fahr vorsichtig!"
+  ]
+};
+const PICS = {sonne:["sonne","heiter"], hitze:["hitze"], heiter:["heiter","sonne"], regen:["regen"], starkregen:["regen"], schauer:["schauer","wechselhaft","regenbogen"],
+  kalt:["kalt","winter"], schnee:["schnee","winter"], glatt:["glatt"], wind:["wind","drachen"], gewitter:["gewitter"], nacht:["nacht"], nachtwolkig:["nacht"], wolkig:["wolkig"], nebel:["wolkig"]};
+function frogMood(c){
+  if (c.thunder || c.warnLevel>=3) return "gewitter";
+  if (c.night) return c.cloud<45 ? "nacht" : "nachtwolkig";
+  if (c.kind==="snow") return "schnee";
+  if (c.min<=0 && (/rain|shower/.test(c.kind) || c.temp<=1)) return "glatt";
+  if (c.gust>=45 && !/heavy/.test(c.kind)) return "wind";
+  if (c.kind==="heavy") return "starkregen";
+  if (c.kind==="rain") return "regen";
+  if (/shower/.test(c.kind)) return "schauer";
+  if (c.temp<6) return "kalt";
+  if (c.kind==="clear-day") return c.max>=27 ? "hitze" : "sonne";
+  if (c.kind==="partly-day") return "heiter";
+  if (c.kind==="fog") return "nebel";
+  return "wolkig";
 }
-function frogSVG(c){
-  const lvl = c.night ? .55 : Math.max(0, Math.min(1, (HEIGHT[c.kind] ?? .5) - (c.temp<4 ? .08 : 0)));
-  const rungs = [178,164,150,136,122,108,94];
-  const ri = Math.round(lvl*6), y = rungs[ri];
-  const rain = /rain|heavy|shower/.test(c.kind) && !c.night, sun = /clear|partly/.test(c.kind) && !c.night && c.temp>=14;
-  const cold = c.temp<6 || c.kind==="snow", scared = c.kind==="thunder" || !!c.warn, sleep = c.night;
-  const G="#5cc062", D="#3e9e4a", B="#c8eeb0";
-  let body = "";
-  // Beine und Körper
-  body += `<ellipse cx="-19" cy="-6" rx="11" ry="6" fill="${D}"/><ellipse cx="19" cy="-6" rx="11" ry="6" fill="${D}"/>`;
-  body += `<ellipse cx="0" cy="-21" rx="22" ry="19" fill="${G}"/><ellipse cx="0" cy="-16" rx="14" ry="11" fill="${B}"/>`;
-  body += `<ellipse cx="-13" cy="-3" rx="6" ry="4" fill="${D}"/><ellipse cx="13" cy="-3" rx="6" ry="4" fill="${D}"/>`;
-  if (cold) body += `<path d="M-19,-30 Q0,-24 19,-30 L19,-24 Q0,-18 -19,-24 Z" fill="#e4574b"/><path d="M8,-26 l4,16 l7,-1 l-4,-15z" fill="#e4574b"/><path d="M-12,-27 v5 M-4,-25 v5 M4,-25 v5 M12,-27 v5" stroke="#ffd166" stroke-width="2"/>`;
-  // Mütze hinter den Augen
-  if (cold && !sleep) body += `<path d="M-23,-46 Q-23,-74 0,-74 Q23,-74 23,-46 Z" fill="#e4574b"/><rect x="-24" y="-50" width="48" height="7" rx="3" fill="#f5f0e6"/><circle cx="0" cy="-77" r="5.5" fill="#f5f0e6"/>`;
-  if (sleep) body += `<path d="M-22,-48 Q-18,-76 6,-72 Q22,-70 34,-58 Q30,-52 22,-50 Z" fill="#6f8fd8"/><circle cx="35" cy="-56" r="5" fill="#f5f0e6"/>`;
-  // Kopf
-  body += `<ellipse cx="0" cy="-40" rx="24" ry="16" fill="${G}"/>`;
-  body += `<circle cx="-13" cy="-52" r="9.5" fill="${G}"/><circle cx="13" cy="-52" r="9.5" fill="${G}"/>`;
-  if (sleep){
-    body += `<path d="M-18,-52 q5,4 10,0 M8,-52 q5,4 10,0" stroke="#1f3a24" stroke-width="2" fill="none" stroke-linecap="round"/>`;
-  } else {
-    const pr = scared ? 2 : 3.4, px = scared ? 0 : 1;
-    body += `<g class="frog-eyes"><circle cx="-13" cy="-52" r="${scared?7.5:6.5}" fill="#fff"/><circle cx="13" cy="-52" r="${scared?7.5:6.5}" fill="#fff"/>
-      <circle cx="${-13+px}" cy="-51.5" r="${pr}" fill="#18271a"/><circle cx="${13+px}" cy="-51.5" r="${pr}" fill="#18271a"/>
-      <circle cx="${-12+px}" cy="-53" r="1.1" fill="#fff"/><circle cx="${14+px}" cy="-53" r="1.1" fill="#fff"/></g>`;
-  }
-  if (sun) body += `<g><rect x="-23" y="-57" width="18" height="11" rx="5" fill="#16202c"/><rect x="5" y="-57" width="18" height="11" rx="5" fill="#16202c"/><path d="M-5,-53 h10" stroke="#16202c" stroke-width="2.5"/><path d="M-19,-55 l5,0" stroke="#fff" stroke-opacity=".5" stroke-width="1.5"/></g>`;
-  body += `<circle cx="-17" cy="-37" r="3.6" fill="#ff9aa2" opacity=".75"/><circle cx="17" cy="-37" r="3.6" fill="#ff9aa2" opacity=".75"/>`;
-  body += scared ? `<ellipse cx="0" cy="-34" rx="3.5" ry="4" fill="#1f5a2a"/>` : sleep ? `<path d="M-5,-35 q5,3 10,0" stroke="#1f5a2a" stroke-width="2" fill="none" stroke-linecap="round"/>` : `<path d="M-10,-37 Q0,-28 10,-37" stroke="#1f5a2a" stroke-width="2.2" fill="none" stroke-linecap="round"/>`;
-  // Schirm
-  if (rain) body += `<path d="M20,-12 L27,-70" stroke="#5b4636" stroke-width="2.4" stroke-linecap="round"/><path d="M20,-12 q-1,6 -6,5" stroke="#5b4636" stroke-width="2.4" fill="none" stroke-linecap="round"/>
-    <path d="M-3,-68 Q27,-102 57,-68 Q50,-74 42,-68 Q35,-74 27,-68 Q19,-74 12,-68 Q4,-74 -3,-68 Z" fill="#ff6b6b"/><path d="M27,-68 Q27,-90 27,-86" stroke="#d94848" stroke-width="1"/><circle cx="27" cy="-86" r="2" fill="#5b4636"/>`;
-  if (sleep) body += `<text class="zzz" x="26" y="-66" font-size="13" font-weight="700" fill="#fff" font-family="Bricolage Grotesque,sans-serif">Z</text><text class="zzz" x="34" y="-78" font-size="10" font-weight="700" fill="#fff" style="animation-delay:1.2s" font-family="Bricolage Grotesque,sans-serif">z</text>`;
-
-  let ladder = `<g stroke="#d9b382" stroke-width="4" stroke-linecap="round"><line x1="48" y1="80" x2="48" y2="192"/><line x1="82" y1="80" x2="82" y2="192"/>${rungs.map(r=>`<line x1="48" y1="${r}" x2="82" y2="${r}" stroke-width="3"/>`).join("")}</g>`;
-  return `<svg viewBox="0 0 130 206" role="img" aria-label="Wetterfrosch auf Sprosse ${ri+1} von 7" id="frogSvg">
-    <rect x="10" y="22" width="110" height="178" rx="24" fill="rgba(255,255,255,.12)" stroke="rgba(255,255,255,.6)" stroke-width="2.5"/>
-    <path d="M12,176 Q40,170 65,176 T118,176 L118,186 Q118,198 104,198 L26,198 Q12,198 12,186 Z" fill="#8fd0ff" opacity=".35"/>
-    <rect x="20" y="10" width="90" height="16" rx="6" fill="#c9965a"/><rect x="20" y="20" width="90" height="4" fill="#a8783f"/>
-    <path d="M22,40 q0,60 0,130" stroke="#fff" stroke-opacity=".25" stroke-width="5" stroke-linecap="round" fill="none"/>
-    ${ladder}
-    <g transform="translate(65,${y}) scale(.82)"><g id="frogBody" class="${scared?"frog-shake":"frog-bob"}">${body}</g></g>
-  </svg>`;
+function frogLines(c, mood){
+  const key = mood==="hitze"||mood==="heiter" ? "sonne" : mood;
+  let lines = (SAY[key]||SAY.wolkig).map(x => typeof x==="string" ? x : (x.min==null || c.max>=x.min ? x.t : null)).filter(Boolean);
+  if (c.warn) lines.unshift(`Achtung, der Deutsche Wetterdienst warnt vor ${c.warn}. Pass gut auf dich auf!`);
+  if (c.night) lines.push(`Morgen gibt's übrigens ${c.tmrw}.`);
+  if (c.gust>=50 && mood!=="wind") lines.push(`Halt deine Mütze fest! Böen bis ${c.gust} km/h.`);
+  return lines;
 }
 function frogCard(f, cur, today, temp, alerts, nowISO){
   const top = (alerts||[]).slice().sort((a,b)=>(SEV[b.severity]||0)-(SEV[a.severity]||0))[0];
-  const warn = top && (SEV[top.severity]||0)>=2 ? (top.event_de ? top.event_de.charAt(0)+top.event_de.slice(1).toLowerCase() : "Unwetter") : null;
+  const warnLevel = top ? (SEV[top.severity]||0) : 0;
+  const warn = top && warnLevel>=2 ? (top.event_de ? top.event_de.charAt(0)+top.event_de.slice(1).toLowerCase() : "Unwetter") : null;
   const tm = f.days[f.days.indexOf(today)+1];
   const tmrw = tm ? `${LABEL[tm.kind].toLowerCase()} bei ${r0(tm.max)}°` : "neues Wetter";
-  const gust = r0(Math.max(...f.hours.slice(f.hours.indexOf(cur), f.hours.indexOf(cur)+12).map(x=>x.gust)));
-  frogCtx = {kind:cur.kind, temp:r0(temp), max:r0(today.max), min:r0(today.min), gust, night:!cur.isDay, warn, tmrw};
-  frogCtx.lines = frogLines(frogCtx); frogCtx.last = -1;
-  return `<section class="card frogcard fadein">${frogSVG(frogCtx)}<div class="bubble" id="frogSay">${nextLine()}<small>Tipp auf mich!</small></div></section>`;
+  const ci = f.hours.indexOf(cur);
+  const gust = r0(Math.max(...f.hours.slice(ci, ci+12).map(x=>x.gust)));
+  frogCtx = {kind:cur.kind, temp:r0(temp), max:r0(today.max), min:r0(today.min), gust, cloud:cur.cloud, night:!cur.isDay, thunder:cur.kind==="thunder", warn, warnLevel, tmrw};
+  const mood = frogMood(frogCtx);
+  frogCtx.mood = mood; frogCtx.lines = frogLines(frogCtx, mood); frogCtx.last = -1;
+  frogCtx.pics = PICS[mood] || ["wolkig"]; frogCtx.pi = Math.floor(Math.random()*frogCtx.pics.length);
+  const anim = mood==="gewitter" ? "frog-shake" : mood==="wind" ? "frog-wobble" : "frog-bob";
+  return `<section class="card frogcard fadein">
+    <button class="frogpic" id="frogBtn" type="button" aria-label="Wetterfrosch antippen"><img id="frogImg" class="${anim}${mood.startsWith("nacht")?" night":""}" src="frog/${frogCtx.pics[frogCtx.pi]}.webp" alt="Wetterfrosch" data-anim="${anim}"></button>
+    <div class="bubble" id="frogSay">${nextLine()}<small>Tipp auf mich!</small></div></section>`;
 }
 function nextLine(){
   const L = frogCtx.lines; let i = Math.floor(Math.random()*L.length);
@@ -712,13 +768,119 @@ function nextLine(){
   frogCtx.last = i; return L[i];
 }
 function bindFrog(){
-  const svg = $("#frogSvg"); if (!svg) return;
-  svg.onclick = () => {
-    const b = $("#frogBody"), cls = b.getAttribute("class");
-    b.setAttribute("class","frog-jump");
-    setTimeout(()=>b.setAttribute("class",cls), 650);
+  const btn = $("#frogBtn"); if (!btn) return;
+  btn.onclick = () => {
+    const img = $("#frogImg"), anim = img.dataset.anim;
+    img.className = "frog-jump" + (frogCtx.mood.startsWith("nacht") ? " night" : "");
+    setTimeout(() => {
+      if (frogCtx.pics.length>1){ frogCtx.pi = (frogCtx.pi+1)%frogCtx.pics.length; img.src = `frog/${frogCtx.pics[frogCtx.pi]}.webp`; }
+      img.className = anim + (frogCtx.mood.startsWith("nacht") ? " night" : "");
+    }, 650);
     $("#frogSay").innerHTML = nextLine() + `<small>Tipp auf mich!</small>`;
   };
+}
+
+/* ================= Regenradar (DWD über Bright Sky) ================= */
+// precipitation_5: Hundertstel Millimeter pro 5 Minuten → mm/h = Wert × 0,12
+const WET = 2;
+function radarCast(r){
+  try {
+    if (!r || !r.radar || !r.radar.length || !r.latlon_position) return null;
+    const nowMs = Date.now();
+    const frames = r.radar.filter(f => Array.isArray(f.precipitation_5) && new Date(f.timestamp).getTime() >= nowMs - 7.5*60000);
+    if (frames.length < 6) return null;
+    const g0 = frames[0].precipitation_5, H = g0.length, W = g0[0].length;
+    const px = Math.round(r.latlon_position.x), py = Math.round(r.latlon_position.y);
+    if (px<0 || py<0 || px>=W || py>=H) return null;
+    const point = frames.map(f => {
+      let m = 0;
+      for (let dy=-1; dy<=1; dy++) for (let dx=-1; dx<=1; dx++){
+        const row = f.precipitation_5[py+dy]; const v = row ? row[px+dx] : null;
+        if (v!=null && v>m) m = v;
+      }
+      return m;
+    });
+    return {frames, W, H, px:r.latlon_position.x, py:r.latlon_position.y, point, times:frames.map(f=>new Date(f.timestamp))};
+  } catch(e){ return null; }
+}
+const tLoc = d => d.toLocaleTimeString("de-DE",{hour:"2-digit",minute:"2-digit"});
+function radarText(rc){
+  const p = rc.point, t = rc.times;
+  const wetNow = p[0]>=WET || (p[1]>=WET && t[1]-Date.now()<5*60000);
+  if (wetNow){
+    const d = p.findIndex(v=>v<WET);
+    if (d<0) return "Es regnet und hört in den nächsten 2 Stunden nicht auf.";
+    const mins = Math.max(5, Math.round((t[d]-Date.now())/60000/5)*5);
+    return `Es regnet. Trocken ab etwa ${tLoc(t[d])} Uhr (in ${mins} Minuten).`;
+  }
+  const w = p.findIndex(v=>v>=WET);
+  if (w<0) return "Kein Regen in den nächsten 2 Stunden.";
+  const mins = Math.max(5, Math.round((t[w]-Date.now())/60000/5)*5);
+  const peak = Math.max(...p.slice(w))*0.12;
+  const how = peak>=4 ? "kräftiger Regen" : peak>=1 ? "Regen" : "leichter Regen";
+  return `In ${mins} Minuten ${how}, ab etwa ${tLoc(t[w])} Uhr.`;
+}
+function radarCard(rc){
+  const txt = radarText(rc), mx = Math.max(WET*3, ...rc.point);
+  const n = rc.point.length, mid = Math.floor(n/2);
+  return `<section class="card fadein">
+    <div class="head"><h2>${drop()} Regenradar</h2><span class="label">2 Std · 5 Min</span></div>
+    <p class="nowtext">${txt}</p>
+    <div class="bars" style="grid-template-columns:repeat(${n},1fr);gap:2px" role="img" aria-label="${txt}">${rc.point.map(v=>`<i class="${v<WET?"zero":""}" style="height:${Math.max(6,Math.min(100,v/mx*100))}%"></i>`).join("")}</div>
+    <div class="axis num"><span>Jetzt</span><span>${tLoc(rc.times[mid])}</span><span>${tLoc(rc.times[n-1])}</span></div>
+    <div class="radar">
+      <canvas id="radarCv" width="400" height="400" aria-label="Animierte Radarkarte rund um ${esc(loc.name)}"></canvas>
+      <div class="rctl"><button class="play" id="rPlay" type="button" aria-label="Abspielen"></button><input id="rSlide" type="range" min="0" max="${n-1}" value="0" aria-label="Zeitpunkt"><span class="rtime" id="rTime"></span></div>
+      <div class="rlegend"><span>leicht</span><i></i><span>Starkregen</span></div>
+    </div>
+    <p class="src">Radar-Vorhersage des Deutschen Wetterdienstes, 25 km rund um ${esc(loc.name)}.</p>
+  </section>`;
+}
+function rainColor(v){
+  const mmh = v*0.12;
+  if (mmh<0.1) return null;
+  const st = [[0.1,[154,216,255,.55]],[0.5,[90,170,255,.75]],[1,[58,141,255,.85]],[2,[47,209,106,.9]],[5,[255,225,77,.92]],[10,[255,154,60,.95]],[20,[255,77,77,.95]],[40,[196,92,255,.95]]];
+  let c = st[0][1];
+  for (const [lim,col] of st) if (mmh>=lim) c = col;
+  return `rgba(${c[0]},${c[1]},${c[2]},${c[3]})`;
+}
+let radarTimer = null;
+function bindRadar(rc){
+  const cv = $("#radarCv"); if (!cv) return;
+  const g = cv.getContext("2d"), S = cv.width, cell = S/Math.max(rc.W, rc.H);
+  const slide = $("#rSlide"), play = $("#rPlay"), lab = $("#rTime");
+  const playIco = `<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M7 4v16l13-8z"/></svg>`;
+  const pauseIco = `<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M6 4h4v16H6zM14 4h4v16h-4z"/></svg>`;
+  function draw(i){
+    g.clearRect(0,0,S,S);
+    const ox = (S - rc.W*cell)/2, oy = (S - rc.H*cell)/2;
+    // Entfernungsringe 10 und 20 km
+    const cx = ox + (rc.px+.5)*cell, cy = oy + (rc.py+.5)*cell;
+    g.strokeStyle = "rgba(255,255,255,.18)"; g.lineWidth = 1;
+    [10,20].forEach(km => { g.beginPath(); g.arc(cx, cy, km*cell, 0, 7); g.stroke(); });
+    g.fillStyle = "rgba(255,255,255,.5)"; g.font = "600 11px 'IBM Plex Sans',sans-serif"; g.textAlign = "center";
+    g.fillText("10 km", cx, cy-10*cell-4); g.fillText("20 km", cx, cy-20*cell-4);
+    g.fillText("N", S-16, 18); g.beginPath(); g.moveTo(S-16,22); g.lineTo(S-20,32); g.lineTo(S-12,32); g.closePath(); g.fill();
+    const grid = rc.frames[i].precipitation_5;
+    for (let y=0; y<rc.H; y++){ const row = grid[y]; for (let x=0; x<rc.W; x++){ const col = rainColor(row[x]); if (col){ g.fillStyle = col; g.fillRect(ox+x*cell, oy+y*cell, cell+.6, cell+.6); } } }
+    // eigener Ort
+    g.fillStyle = "#fff"; g.beginPath(); g.arc(cx, cy, 6, 0, 7); g.fill();
+    g.strokeStyle = "#14304f"; g.lineWidth = 2.5; g.beginPath(); g.arc(cx, cy, 6, 0, 7); g.stroke();
+    g.fillStyle = "#fff"; g.font = "700 13px 'IBM Plex Sans',sans-serif"; g.textAlign = "left";
+    g.fillText(loc.name, Math.min(cx+10, S-g.measureText(loc.name).width-6), cy+4);
+    const d = Math.round((rc.times[i]-Date.now())/60000);
+    lab.textContent = d<=2 ? `Jetzt ${tLoc(rc.times[i])}` : `+${d} Min · ${tLoc(rc.times[i])}`;
+    slide.value = i;
+  }
+  function stop(){ clearInterval(radarTimer); radarTimer = null; play.innerHTML = playIco; play.setAttribute("aria-label","Abspielen"); }
+  function start(){
+    stop(); play.innerHTML = pauseIco; play.setAttribute("aria-label","Anhalten");
+    radarTimer = setInterval(() => { let i = +slide.value + 1; if (i >= rc.frames.length) i = 0; draw(i); }, 450);
+  }
+  play.onclick = () => radarTimer ? stop() : start();
+  slide.oninput = () => { stop(); draw(+slide.value); };
+  draw(0);
+  if (!reduce) start(); else stop();
 }
 
 /* ================= 5 Tage: morgens, mittags, abends ================= */

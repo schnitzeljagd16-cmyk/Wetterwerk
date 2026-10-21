@@ -148,12 +148,55 @@ public class WeatherCore {
                 n.rainText = "Kein Regen in den nächsten 3 Std";
             }
         }
+        try { applyRadar(n, la, lo); } catch (Exception ignored) { }
         try {
             JSONObject a = new JSONObject(get("https://api.brightsky.dev/alerts?lat=" + la + "&lon=" + lo));
             JSONArray arr = a.optJSONArray("alerts");
             if (arr != null) n.alerts = arr;
         } catch (Exception ignored) { }
         return n;
+    }
+
+    /** Regenradar des DWD (5-Minuten-Schritte, 2 Stunden): genauer als das Wettermodell. */
+    static void applyRadar(Now n, double la, double lo) throws Exception {
+        JSONObject r = new JSONObject(get("https://api.brightsky.dev/radar?lat=" + la + "&lon=" + lo + "&distance=3000&format=plain"));
+        JSONArray frames = r.getJSONArray("radar");
+        JSONObject pos = r.getJSONObject("latlon_position");
+        int px = (int) Math.round(pos.getDouble("x")), py = (int) Math.round(pos.getDouble("y"));
+        SimpleDateFormat iso = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ssXXX", Locale.US);
+        SimpleDateFormat hm = new SimpleDateFormat("HH:mm", Locale.GERMANY);
+        long now = System.currentTimeMillis();
+        int count = 0, firstWet = -1, firstDry = -1;
+        long wetAt = 0, dryAt = 0;
+        boolean wetFirst = false;
+        for (int i = 0; i < frames.length(); i++) {
+            JSONObject f = frames.getJSONObject(i);
+            long t = iso.parse(f.getString("timestamp")).getTime();
+            if (t < now - 7 * 60 * 1000L) continue;
+            JSONArray g = f.getJSONArray("precipitation_5");
+            int m = 0;
+            for (int dy = -1; dy <= 1; dy++) {
+                JSONArray row = g.optJSONArray(py + dy);
+                if (row == null) continue;
+                for (int dx = -1; dx <= 1; dx++) m = Math.max(m, row.optInt(px + dx, 0));
+            }
+            boolean wet = m >= 2;
+            if (count == 0) wetFirst = wet;
+            if (wet && firstWet < 0) { firstWet = count; wetAt = t; }
+            if (!wet && firstDry < 0) { firstDry = count; dryAt = t; }
+            count++;
+        }
+        if (count < 6) return;
+        n.rainingNow = wetFirst;
+        n.rainInMin = -1;
+        if (wetFirst) {
+            n.rainText = firstDry < 0 ? "Regen hält an" : "Regen bis etwa " + hm.format(new Date(dryAt));
+        } else if (firstWet >= 0) {
+            n.rainInMin = (int) Math.max(0, (wetAt - now) / 60000L);
+            n.rainText = "Regen ab etwa " + hm.format(new Date(wetAt));
+        } else {
+            n.rainText = "Kein Regen in den nächsten 2 Std";
+        }
     }
 
     /* ---------- Symbole ---------- */
